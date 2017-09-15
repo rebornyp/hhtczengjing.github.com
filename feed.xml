@@ -1,0 +1,2182 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom">
+  <channel>
+    <title>曾静的技术博客</title>
+    <description>嗨，我是曾静 (@devzeng)，目前暂居深圳。</description>
+    <link>http://blog.devzeng.com/</link>
+    <atom:link href="http://blog.devzeng.com/feed.xml" rel="self" type="application/rss+xml"/>
+    <pubDate>Fri, 15 Sep 2017 10:15:41 +0800</pubDate>
+    <lastBuildDate>Fri, 15 Sep 2017 10:15:41 +0800</lastBuildDate>
+    <generator>Jekyll v3.4.0</generator>
+    
+      <item>
+        <title>CentOS安装Hadoop</title>
+        <description>&lt;p&gt;系统环境&lt;/p&gt;
+
+&lt;p&gt;&lt;img src=&quot;/images/install-hadoop-in-centos/server-config.png&quot; alt=&quot;server-config.png&quot; /&gt;&lt;/p&gt;
+
+&lt;p&gt;下载软件：&lt;/p&gt;
+
+&lt;ul&gt;
+  &lt;li&gt;（1）JDK&lt;/li&gt;
+  &lt;li&gt;（2）Hadoop&lt;/li&gt;
+  &lt;li&gt;（3）MySQL&lt;/li&gt;
+  &lt;li&gt;（4）Hive&lt;/li&gt;
+  &lt;li&gt;（5）HBase&lt;/li&gt;
+  &lt;li&gt;（6）Zookeeper&lt;/li&gt;
+&lt;/ul&gt;
+
+&lt;p&gt;&lt;img src=&quot;/images/install-hadoop-in-centos/hadoop-arch.png&quot; alt=&quot;hadoop-arch.png&quot; /&gt;&lt;/p&gt;
+
+&lt;h3 id=&quot;1服务器配置&quot;&gt;1、服务器配置&lt;/h3&gt;
+
+&lt;h4 id=&quot;1修改主机名&quot;&gt;（1）修改主机名&lt;/h4&gt;
+
+&lt;p&gt;将&lt;code class=&quot;highlighter-rouge&quot;&gt;192.168.13.1&lt;/code&gt;、&lt;code class=&quot;highlighter-rouge&quot;&gt;192.168.13.2&lt;/code&gt; 和 &lt;code class=&quot;highlighter-rouge&quot;&gt;192.168.13.3&lt;/code&gt; 这三台机器分别命名为
+&lt;code class=&quot;highlighter-rouge&quot;&gt;hadoop-master&lt;/code&gt;、&lt;code class=&quot;highlighter-rouge&quot;&gt;hadoop-slave1&lt;/code&gt; 和 &lt;code class=&quot;highlighter-rouge&quot;&gt;hadoop-slave2&lt;/code&gt;。&lt;/p&gt;
+
+&lt;p&gt;1） 修改&lt;code class=&quot;highlighter-rouge&quot;&gt;/etc/sysconfig/network&lt;/code&gt;文件&lt;/p&gt;
+
+&lt;div class=&quot;highlighter-rouge&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;修改
+HOSTNAME=localhost.localdomain
+为
+HOSTNAME=hadoop-master #这里根据情况进行调整(hadoop-master/slave1/slave2)
+&lt;/code&gt;&lt;/pre&gt;
+&lt;/div&gt;
+
+&lt;p&gt;2）修改&lt;code class=&quot;highlighter-rouge&quot;&gt;/etc/hosts&lt;/code&gt;&lt;/p&gt;
+
+&lt;p&gt;修改成如下代码：&lt;/p&gt;
+
+&lt;div class=&quot;highlighter-rouge&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;127.0.0.1 hadoop-master
+::1 hadoop-master
+&lt;/code&gt;&lt;/pre&gt;
+&lt;/div&gt;
+
+&lt;p&gt;修改完成之后重启才会生效，如果想要立即生效，可以使用&lt;code class=&quot;highlighter-rouge&quot;&gt;hostname hadoop-master&lt;/code&gt;的方式临时生效，下次服务器重启后就好了。&lt;/p&gt;
+
+&lt;p&gt;3）在每台服务器上面修改hosts文件增加如下配置：&lt;/p&gt;
+
+&lt;div class=&quot;highlighter-rouge&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;192.168.13.1 hadoop-master
+192.168.13.2 hadoop-slave1
+192.168.13.3 hadoop-slave2
+&lt;/code&gt;&lt;/pre&gt;
+&lt;/div&gt;
+
+&lt;h4 id=&quot;2关闭防火墙&quot;&gt;（2）关闭防火墙&lt;/h4&gt;
+
+&lt;p&gt;1) 关闭selinux&lt;/p&gt;
+
+&lt;div class=&quot;highlighter-rouge&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;sed -i 's/SELINUX=enforcing/SELINUX=disabled/' /etc/selinux/config
+&lt;/code&gt;&lt;/pre&gt;
+&lt;/div&gt;
+
+&lt;p&gt;查看selinux状态：&lt;/p&gt;
+
+&lt;div class=&quot;highlighter-rouge&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;/usr/sbin/sestatus -v
+&lt;/code&gt;&lt;/pre&gt;
+&lt;/div&gt;
+
+&lt;p&gt;2) 关闭防火墙&lt;/p&gt;
+
+&lt;div class=&quot;highlighter-rouge&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;service iptables stop
+chkconfig iptables off
+&lt;/code&gt;&lt;/pre&gt;
+&lt;/div&gt;
+
+&lt;p&gt;查看防火墙状态：&lt;/p&gt;
+
+&lt;div class=&quot;highlighter-rouge&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;service iptables status
+&lt;/code&gt;&lt;/pre&gt;
+&lt;/div&gt;
+
+&lt;h4 id=&quot;3配置ssh免密码登录&quot;&gt;（3）配置SSH免密码登录&lt;/h4&gt;
+
+&lt;p&gt;因为Hadoop需要通过SSH登录到各个节点进行操作，每台服务器都生成公钥，再合并到&lt;code class=&quot;highlighter-rouge&quot;&gt;authorized_keys&lt;/code&gt;&lt;/p&gt;
+
+&lt;p&gt;1）开启SSH免密码登录模式&lt;/p&gt;
+
+&lt;p&gt;CentOS默认没有启动SSH无密码登录，需要修改&lt;code class=&quot;highlighter-rouge&quot;&gt;/etc/ssh/sshd_config&lt;/code&gt;将下面的两行配置前面的注释去掉（每台服务器都要设置）：&lt;/p&gt;
+
+&lt;div class=&quot;highlighter-rouge&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;#RSAAuthentication yes
+#PubkeyAuthentication yes
+&lt;/code&gt;&lt;/pre&gt;
+&lt;/div&gt;
+
+&lt;p&gt;2）生成密钥&lt;/p&gt;
+
+&lt;div class=&quot;highlighter-rouge&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;ssh-keygen -t rsa
+&lt;/code&gt;&lt;/pre&gt;
+&lt;/div&gt;
+
+&lt;p&gt;执行上面的命令，一路回车即可（每台服务器都要设置）。&lt;/p&gt;
+
+&lt;p&gt;3）合并公钥到authorized_keys文件&lt;/p&gt;
+
+&lt;div class=&quot;highlighter-rouge&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;cat id_rsa.pub &amp;gt;&amp;gt; authorized_keys
+ssh root@192.168.13.2 cat ~/.ssh/id_rsa.pub &amp;gt;&amp;gt; authorized_keys
+ssh root@192.168.13.3 cat ~/.ssh/id_rsa.pub &amp;gt;&amp;gt; authorized_keys
+&lt;/code&gt;&lt;/pre&gt;
+&lt;/div&gt;
+
+&lt;p&gt;4）把Master服务器的&lt;code class=&quot;highlighter-rouge&quot;&gt;authorized_keys&lt;/code&gt;、&lt;code class=&quot;highlighter-rouge&quot;&gt;known_hosts&lt;/code&gt;复制到Slave服务器的&lt;code class=&quot;highlighter-rouge&quot;&gt;/root/.ssh&lt;/code&gt;目录&lt;/p&gt;
+
+&lt;div class=&quot;highlighter-rouge&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;scp /root/.ssh/authorized_keys root@192.168.13.2:/root/.ssh
+scp /root/.ssh/known_hosts root@192.168.13.2:/root/.ssh
+
+scp /root/.ssh/authorized_keys root@192.168.13.3:/root/.ssh
+scp /root/.ssh/known_hosts root@192.168.13.3:/root/.ssh
+&lt;/code&gt;&lt;/pre&gt;
+&lt;/div&gt;
+
+&lt;p&gt;执行完成后，使用&lt;code class=&quot;highlighter-rouge&quot;&gt;ssh root@192.168.13.2&lt;/code&gt;、&lt;code class=&quot;highlighter-rouge&quot;&gt;ssh root@192.168.13.3&lt;/code&gt;就不需要输入密码了&lt;/p&gt;
+
+&lt;h3 id=&quot;2组件安装&quot;&gt;2、组件安装&lt;/h3&gt;
+
+&lt;h4 id=&quot;1安装配置jdk&quot;&gt;（1）安装配置JDK&lt;/h4&gt;
+
+&lt;p&gt;每台机器都需要安装JDK，所以先在&lt;code class=&quot;highlighter-rouge&quot;&gt;hadoop-master&lt;/code&gt;上面安装好之后，通过scp命令拷贝到&lt;code class=&quot;highlighter-rouge&quot;&gt;hadoop-slave1&lt;/code&gt;和&lt;code class=&quot;highlighter-rouge&quot;&gt;hadoop-slave2&lt;/code&gt;上面。&lt;/p&gt;
+
+&lt;p&gt;1) 解压&lt;/p&gt;
+
+&lt;div class=&quot;highlighter-rouge&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;mkdir -p /home/bigdata/java
+tar xvf jdk-8u144-linux-x64.tar -C /home/bigdata/java
+&lt;/code&gt;&lt;/pre&gt;
+&lt;/div&gt;
+
+&lt;p&gt;2) 配置环境变量&lt;/p&gt;
+
+&lt;div class=&quot;highlighter-rouge&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;vi /etc/profile
+
+#在文件末尾增加如下配置：
+export JAVA_HOME=/home/bigdata/java/jdk1.8.0_144
+export CLASSPATH=.:$JAVA_HOME/jre/lib/rt.jar:$JAVA_HOME/lib/dt.jar:$JAVA_HOME/lib/tools.jar
+export PATH=$PATH:$JAVA_HOME/bin
+&lt;/code&gt;&lt;/pre&gt;
+&lt;/div&gt;
+
+&lt;p&gt;保存后，执行&lt;code class=&quot;highlighter-rouge&quot;&gt;source /etc/profile&lt;/code&gt;使配置生效，然后可以通过&lt;code class=&quot;highlighter-rouge&quot;&gt;java -version&lt;/code&gt;查看是否安装成功：&lt;/p&gt;
+
+&lt;div class=&quot;highlighter-rouge&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;java version &quot;1.8.0_144&quot;
+Java(TM) SE Runtime Environment (build 1.8.0_144-b01)
+Java HotSpot(TM) 64-Bit Server VM (build 25.144-b01, mixed mode)
+&lt;/code&gt;&lt;/pre&gt;
+&lt;/div&gt;
+
+&lt;p&gt;3）分发到各台机器上面&lt;/p&gt;
+
+&lt;p&gt;① 首先到各台近期上面都要创建&lt;code class=&quot;highlighter-rouge&quot;&gt;/home/bigdata&lt;/code&gt;的文件目录，然后执行下面的命令：&lt;/p&gt;
+
+&lt;div class=&quot;highlighter-rouge&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;scp -r /home/bigdata/java root@hadoop-slave1:/home/bigdata/
+scp -r /home/bigdata/java root@hadoop-slave2:/home/bigdata/
+&lt;/code&gt;&lt;/pre&gt;
+&lt;/div&gt;
+
+&lt;p&gt;② 到各台机器上面配置环境变量，和上面的配置一致&lt;/p&gt;
+
+&lt;p&gt;说明：&lt;/p&gt;
+
+&lt;p&gt;如果执行&lt;code class=&quot;highlighter-rouge&quot;&gt;java -version&lt;/code&gt;不是安装的指定版本的JDK，而是系统默认的JDK的话需要先把系统的JDK卸载，可以先通过&lt;code class=&quot;highlighter-rouge&quot;&gt;rpm -qa | grep java&lt;/code&gt;这个命名查出来当前安装的Java包：&lt;/p&gt;
+
+&lt;div class=&quot;highlighter-rouge&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;java_cup-0.10k-5.el6.x86_64
+pki-java-tools-9.0.3-20.el6.noarch
+tzdata-java-2011l-4.el6.noarch
+java-1.5.0-gcj-1.5.0.0-29.1.el6.x86_64
+java-1.6.0-openjdk-1.6.0.0-1.41.1.10.4.el6.x86_64
+&lt;/code&gt;&lt;/pre&gt;
+&lt;/div&gt;
+
+&lt;p&gt;比如当前通过&lt;code class=&quot;highlighter-rouge&quot;&gt;java -version&lt;/code&gt;查询出来的版本是&lt;code class=&quot;highlighter-rouge&quot;&gt;1.6&lt;/code&gt;那么对应使用的包是&lt;code class=&quot;highlighter-rouge&quot;&gt;java-1.6.0-openjdk-1.6.0.0-1.41.1.10.4.el6.x86_64&lt;/code&gt;，然后使用&lt;code class=&quot;highlighter-rouge&quot;&gt;rpm -e --nodeps java-1.6.0-openjdk-1.6.0.0-1.41.1.10.4.el6.x86_64&lt;/code&gt;直接卸载就行了，反复几次直到查询Java的版本不再是系统的默认就可以了，然后使用&lt;code class=&quot;highlighter-rouge&quot;&gt;source /etc/profile&lt;/code&gt;让配置生效。&lt;/p&gt;
+
+&lt;h4 id=&quot;2安装配置zookeeper&quot;&gt;（2）安装配置Zookeeper&lt;/h4&gt;
+
+&lt;p&gt;Zookeeper安装在&lt;code class=&quot;highlighter-rouge&quot;&gt;hadoop-slave1&lt;/code&gt;和&lt;code class=&quot;highlighter-rouge&quot;&gt;hadoop-slave2&lt;/code&gt;上面，下面的操作都是在这两台机器上面。&lt;/p&gt;
+
+&lt;p&gt;1) 解压&lt;/p&gt;
+
+&lt;div class=&quot;highlighter-rouge&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;mkdir -p /home/bigdata/zookeeper
+cd /home/bigdata/zookeeper
+mkdir zookeeper-data
+tar zxvf zookeeper-3.4.6.tar.gz -C /home/bigdata/zookeeper
+&lt;/code&gt;&lt;/pre&gt;
+&lt;/div&gt;
+
+&lt;p&gt;2) 配置环境变量&lt;/p&gt;
+
+&lt;div class=&quot;highlighter-rouge&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;vi /etc/profile
+
+#在文件末尾增加如下配置
+export ZOOKEEPER_HOME=/home/bigdata/zookeeper/zookeeper-3.4.6
+export PATH=$PATH:${ZOOKEEPER_HOME}/bin
+&lt;/code&gt;&lt;/pre&gt;
+&lt;/div&gt;
+
+&lt;p&gt;保存后&lt;code class=&quot;highlighter-rouge&quot;&gt;source /etc/profile&lt;/code&gt;。&lt;/p&gt;
+
+&lt;p&gt;3) 新建&lt;code class=&quot;highlighter-rouge&quot;&gt;zoo.cfg&lt;/code&gt;配置文件&lt;/p&gt;
+
+&lt;div class=&quot;highlighter-rouge&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;cd $ZOOKEEPER_HOME/conf
+vi zoo.cfg
+&lt;/code&gt;&lt;/pre&gt;
+&lt;/div&gt;
+
+&lt;p&gt;文件的配置内容为：&lt;/p&gt;
+
+&lt;div class=&quot;highlighter-rouge&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;tickTime=2000
+initLimit=10
+syncLimit=5
+dataDir=/home/bigdata/zookeeper/zookeeper-data
+clientPort=2222
+server.1=hadoop-slave1:2888:3888
+server.2=hadoop-slave2:2888:3888
+&lt;/code&gt;&lt;/pre&gt;
+&lt;/div&gt;
+
+&lt;p&gt;4) 新建&lt;code class=&quot;highlighter-rouge&quot;&gt;myid&lt;/code&gt;配置文件&lt;/p&gt;
+
+&lt;div class=&quot;highlighter-rouge&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;cd /home/bigdata/zookeeper/zookeeper-data
+vi myid
+&lt;/code&gt;&lt;/pre&gt;
+&lt;/div&gt;
+
+&lt;p&gt;这里&lt;code class=&quot;highlighter-rouge&quot;&gt;myid&lt;/code&gt;里面的内容对应上面的&lt;code class=&quot;highlighter-rouge&quot;&gt;zoo.cfg&lt;/code&gt;文件中&lt;code class=&quot;highlighter-rouge&quot;&gt;server.x&lt;/code&gt;这个&lt;code class=&quot;highlighter-rouge&quot;&gt;x&lt;/code&gt;(服务号)：
+如果是&lt;code class=&quot;highlighter-rouge&quot;&gt;hadoop-slave1&lt;/code&gt;机器&lt;code class=&quot;highlighter-rouge&quot;&gt;myid&lt;/code&gt;的内容&lt;code class=&quot;highlighter-rouge&quot;&gt;1&lt;/code&gt;，&lt;code class=&quot;highlighter-rouge&quot;&gt;hadoop-slave2&lt;/code&gt;机器&lt;code class=&quot;highlighter-rouge&quot;&gt;myid&lt;/code&gt;的内容&lt;code class=&quot;highlighter-rouge&quot;&gt;2&lt;/code&gt;。&lt;/p&gt;
+
+&lt;p&gt;5) 将zookeeper分发到其他机器(hadoop-slave2)&lt;/p&gt;
+
+&lt;div class=&quot;highlighter-rouge&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;scp -r /home/bigdata/zookeeper root@hadoop-slave2:/home/bigdata
+&lt;/code&gt;&lt;/pre&gt;
+&lt;/div&gt;
+
+&lt;p&gt;修改环境变量配置和&lt;code class=&quot;highlighter-rouge&quot;&gt;myid&lt;/code&gt;的内容即可。&lt;/p&gt;
+
+&lt;p&gt;6）启动服务&lt;/p&gt;
+
+&lt;p&gt;在各台安装zookeeper的机器上面执行下面的命令启动：&lt;/p&gt;
+
+&lt;div class=&quot;highlighter-rouge&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;cd $ZOOKEEPER_HOME/bin
+zkServer.sh start #启动服务
+zkServer.sh status #查看服务状态
+&lt;/code&gt;&lt;/pre&gt;
+&lt;/div&gt;
+
+&lt;p&gt;如果需要关闭&lt;code class=&quot;highlighter-rouge&quot;&gt;zkServer.sh stop&lt;/code&gt;,日志文件在当前目录下面的&lt;code class=&quot;highlighter-rouge&quot;&gt;zookeeper.out&lt;/code&gt;。&lt;/p&gt;
+
+&lt;h4 id=&quot;3安装配置hadoop&quot;&gt;（3）安装配置Hadoop&lt;/h4&gt;
+
+&lt;p&gt;1) 解压&lt;/p&gt;
+
+&lt;div class=&quot;highlighter-rouge&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;mkdir -p /home/bigdata/hadoop
+tar xvf hadoop-2.7.4.tar -C /home/bigdata/hadoop
+&lt;/code&gt;&lt;/pre&gt;
+&lt;/div&gt;
+
+&lt;p&gt;2) 配置Hadoop&lt;/p&gt;
+
+&lt;p&gt;① 创建临时文件夹&lt;/p&gt;
+
+&lt;div class=&quot;highlighter-rouge&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;cd /home/bigdata/hadoop/hadoop-2.7.4
+mkdir tmp
+&lt;/code&gt;&lt;/pre&gt;
+&lt;/div&gt;
+
+&lt;p&gt;② 修改环境变量配置文件&lt;/p&gt;
+
+&lt;div class=&quot;highlighter-rouge&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;vi /etc/profile
+
+#在文件末尾追加如下配置：
+export HADOOP_HOME=/home/bigdata/hadoop/hadoop-2.7.4
+export PATH=$PATH:$HADOOP_HOME/bin:$HADOOP_HOME/sbin
+export HADOOP_MAPRED_HOME=${HADOOP_HOME}
+export HADOOP_HDFS_HOME=${HADOOP_HOME}
+export YARN_HOME=${HADOOP_HOME}
+export HADOOP_COMMON_LIB_NATIVE_DIR=${HADOOP_HOME}/lib/native
+export HADOOP_OPTS=&quot;-Djava.library.path=${HADOOP_HOME}/lib:${HADOOP_HOME}/lib/native&quot;
+&lt;/code&gt;&lt;/pre&gt;
+&lt;/div&gt;
+
+&lt;p&gt;保存后&lt;code class=&quot;highlighter-rouge&quot;&gt;source /etc/profile&lt;/code&gt;。&lt;/p&gt;
+
+&lt;p&gt;③ Hadoop基础配置&lt;/p&gt;
+
+&lt;p&gt;1️⃣ 设置&lt;code class=&quot;highlighter-rouge&quot;&gt;hadoop-env.sh&lt;/code&gt;和&lt;code class=&quot;highlighter-rouge&quot;&gt;yarn-env.sh&lt;/code&gt;中的Java环境变量&lt;/p&gt;
+
+&lt;div class=&quot;highlighter-rouge&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;cd /home/bigdata/hadoop/hadoop-2.7.4/etc/hadoop/
+
+vi hadoop-env.sh
+#修改JAVA_HOME
+export JAVA_HOME=/home/bigdata/java/jdk1.8.0_144
+
+vi yarn-env.sh
+#修改JAVA_HOME
+export JAVA_HOME=/home/bigdata/java/jdk1.8.0_144
+&lt;/code&gt;&lt;/pre&gt;
+&lt;/div&gt;
+
+&lt;p&gt;2️⃣ 配置&lt;code class=&quot;highlighter-rouge&quot;&gt;core-site.xml&lt;/code&gt;配置文件&lt;/p&gt;
+
+&lt;div class=&quot;highlighter-rouge&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;cd /home/bigdata/hadoop/hadoop-2.7.4/etc/hadoop/
+vi core-site.xml
+&lt;/code&gt;&lt;/pre&gt;
+&lt;/div&gt;
+
+&lt;p&gt;文件的配置如下：&lt;/p&gt;
+
+&lt;div class=&quot;highlighter-rouge&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;&amp;lt;configuration&amp;gt;
+  &amp;lt;!-- 存储其他临时目录的根目录 --&amp;gt;
+  &amp;lt;property&amp;gt;
+    &amp;lt;name&amp;gt;hadoop.tmp.dir&amp;lt;/name&amp;gt;
+    &amp;lt;value&amp;gt;/home/bigdata/hadoop/hadoop-2.7.4/tmp&amp;lt;/value&amp;gt;
+    &amp;lt;description&amp;gt;A base for other temporary directories.&amp;lt;/description&amp;gt;
+  &amp;lt;/property&amp;gt;
+  &amp;lt;!-- 与namenode的交互端口 --&amp;gt;
+  &amp;lt;property&amp;gt;
+    &amp;lt;name&amp;gt;fs.default.name&amp;lt;/name&amp;gt;
+    &amp;lt;value&amp;gt;hdfs://hadoop-master:9000&amp;lt;/value&amp;gt;
+ &amp;lt;/property&amp;gt;
+ &amp;lt;property&amp;gt;
+    &amp;lt;name&amp;gt;hadoop.proxyuser.root.hosts&amp;lt;/name&amp;gt;
+    &amp;lt;value&amp;gt;*&amp;lt;/value&amp;gt;
+  &amp;lt;/property&amp;gt;
+  &amp;lt;property&amp;gt;
+    &amp;lt;name&amp;gt;hadoop.proxyuser.root.groups&amp;lt;/name&amp;gt;
+    &amp;lt;value&amp;gt;*&amp;lt;/value&amp;gt;
+  &amp;lt;/property&amp;gt;
+  &amp;lt;property&amp;gt;      
+    &amp;lt;name&amp;gt;io.file.buffer.size&amp;lt;/name&amp;gt;      
+    &amp;lt;value&amp;gt;4096&amp;lt;/value&amp;gt;      
+  &amp;lt;/property&amp;gt;  
+  &amp;lt;!-- 指定zookeeper地址 --&amp;gt;  
+  &amp;lt;property&amp;gt;  
+    &amp;lt;name&amp;gt;ha.zookeeper.quorum&amp;lt;/name&amp;gt;  
+    &amp;lt;value&amp;gt;hadoop-master:2222,hadoop-slave1:2222,hadoop-slave2:2222&amp;lt;/value&amp;gt;  
+  &amp;lt;/property&amp;gt; 
+&amp;lt;/configuration&amp;gt;
+&lt;/code&gt;&lt;/pre&gt;
+&lt;/div&gt;
+
+&lt;p&gt;3️⃣ 配置&lt;code class=&quot;highlighter-rouge&quot;&gt;hdfs-site.xml&lt;/code&gt;文件&lt;/p&gt;
+
+&lt;div class=&quot;highlighter-rouge&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;cd /home/bigdata/hadoop/hadoop-2.7.4/etc/hadoop/
+vi hdfs-site.xml
+&lt;/code&gt;&lt;/pre&gt;
+&lt;/div&gt;
+
+&lt;p&gt;文件的配置如下：&lt;/p&gt;
+
+&lt;div class=&quot;highlighter-rouge&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;&amp;lt;configuration&amp;gt;
+	&amp;lt;!-- 存储在本地的namenode数据镜像目录，作为namenode的冗余备份 --&amp;gt;
+    &amp;lt;property&amp;gt;
+        &amp;lt;name&amp;gt;dfs.namenode.name.dir&amp;lt;/name&amp;gt;
+        &amp;lt;value&amp;gt;file:///home/bigdata/hadoop/hadoop-2.7.4/dfs/name&amp;lt;/value&amp;gt;
+    &amp;lt;/property&amp;gt;
+    &amp;lt;!-- datanode存储数据的根目录 --&amp;gt;
+    &amp;lt;property&amp;gt;
+        &amp;lt;name&amp;gt;dfs.datanode.data.dir&amp;lt;/name&amp;gt;
+        &amp;lt;value&amp;gt;file:///home/bigdata/hadoop/hadoop-2.7.4/dfs/data&amp;lt;/value&amp;gt;
+    &amp;lt;/property&amp;gt;
+    &amp;lt;!-- 冗余数量，备份的数据量 --&amp;gt;
+    &amp;lt;property&amp;gt;
+        &amp;lt;name&amp;gt;dfs.replication&amp;lt;/name&amp;gt;
+        &amp;lt;value&amp;gt;1&amp;lt;/value&amp;gt;
+    &amp;lt;/property&amp;gt;
+    &amp;lt;property&amp;gt;
+        &amp;lt;name&amp;gt;dfs.nameservices&amp;lt;/name&amp;gt;
+        &amp;lt;value&amp;gt;hadoop-master&amp;lt;/value&amp;gt;
+    &amp;lt;/property&amp;gt;
+    &amp;lt;!-- namenode的http协议访问地址与端口 --&amp;gt;
+    &amp;lt;property&amp;gt;
+        &amp;lt;name&amp;gt;dfs.namenode.secondary.http-address&amp;lt;/name&amp;gt;
+        &amp;lt;value&amp;gt;hadoop-master:50090&amp;lt;/value&amp;gt;
+    &amp;lt;/property&amp;gt;
+    &amp;lt;property&amp;gt;
+        &amp;lt;name&amp;gt;dfs.webhdfs.enabled&amp;lt;/name&amp;gt;
+        &amp;lt;value&amp;gt;true&amp;lt;/value&amp;gt;
+    &amp;lt;/property&amp;gt;
+&amp;lt;/configuration&amp;gt;
+&lt;/code&gt;&lt;/pre&gt;
+&lt;/div&gt;
+
+&lt;p&gt;4️⃣ 配置&lt;code class=&quot;highlighter-rouge&quot;&gt;mapred-site.xml&lt;/code&gt;文件&lt;/p&gt;
+
+&lt;div class=&quot;highlighter-rouge&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;cd /home/bigdata/hadoop/hadoop-2.7.4/etc/hadoop/
+cp mapred-site.xml.template mapred-site.xml
+vi mapred-site.xml
+&lt;/code&gt;&lt;/pre&gt;
+&lt;/div&gt;
+&lt;p&gt;文件的配置如下：&lt;/p&gt;
+
+&lt;div class=&quot;highlighter-rouge&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;&amp;lt;configuration&amp;gt;
+    &amp;lt;property&amp;gt;
+        &amp;lt;name&amp;gt;mapreduce.framework.name&amp;lt;/name&amp;gt;
+        &amp;lt;value&amp;gt;yarn&amp;lt;/value&amp;gt;
+        &amp;lt;final&amp;gt;true&amp;lt;/final&amp;gt;
+    &amp;lt;/property&amp;gt;
+    &amp;lt;property&amp;gt;
+        &amp;lt;name&amp;gt;mapreduce.jobtracker.http.address&amp;lt;/name&amp;gt;
+        &amp;lt;value&amp;gt;hadoop-master:50030&amp;lt;/value&amp;gt;
+    &amp;lt;/property&amp;gt;
+    &amp;lt;property&amp;gt;
+        &amp;lt;name&amp;gt;mapreduce.jobhistory.address&amp;lt;/name&amp;gt;
+        &amp;lt;value&amp;gt;hadoop-master:10020&amp;lt;/value&amp;gt;
+    &amp;lt;/property&amp;gt;
+    &amp;lt;property&amp;gt;
+        &amp;lt;name&amp;gt;mapreduce.jobhistory.webapp.address&amp;lt;/name&amp;gt;
+        &amp;lt;value&amp;gt;hadoop-master:19888&amp;lt;/value&amp;gt;
+    &amp;lt;/property&amp;gt;
+    &amp;lt;property&amp;gt;
+        &amp;lt;name&amp;gt;mapred.job.tracker&amp;lt;/name&amp;gt;
+        &amp;lt;value&amp;gt;http://hadoop-master:9001&amp;lt;/value&amp;gt;
+    &amp;lt;/property&amp;gt;
+&amp;lt;/configuration&amp;gt;
+&lt;/code&gt;&lt;/pre&gt;
+&lt;/div&gt;
+
+&lt;p&gt;5️⃣ 配置&lt;code class=&quot;highlighter-rouge&quot;&gt;yarn-site.xml&lt;/code&gt;文件&lt;/p&gt;
+
+&lt;div class=&quot;highlighter-rouge&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;cd /home/bigdata/hadoop/hadoop-2.7.4/etc/hadoop/
+vi yarn-site.xml
+&lt;/code&gt;&lt;/pre&gt;
+&lt;/div&gt;
+
+&lt;p&gt;文件的配置如下：&lt;/p&gt;
+
+&lt;div class=&quot;highlighter-rouge&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;&amp;lt;configuration&amp;gt;
+    &amp;lt;property&amp;gt;
+        &amp;lt;name&amp;gt;yarn.resourcemanager.hostname&amp;lt;/name&amp;gt;
+        &amp;lt;value&amp;gt;hadoop-master&amp;lt;/value&amp;gt;
+    &amp;lt;/property&amp;gt;
+    &amp;lt;property&amp;gt;
+        &amp;lt;name&amp;gt;yarn.nodemanager.aux-services&amp;lt;/name&amp;gt;
+        &amp;lt;value&amp;gt;mapreduce_shuffle&amp;lt;/value&amp;gt;
+    &amp;lt;/property&amp;gt;
+    &amp;lt;property&amp;gt;
+        &amp;lt;name&amp;gt;yarn.resourcemanager.address&amp;lt;/name&amp;gt;
+        &amp;lt;value&amp;gt;hadoop-master:8032&amp;lt;/value&amp;gt;
+    &amp;lt;/property&amp;gt;
+    &amp;lt;property&amp;gt;
+        &amp;lt;name&amp;gt;yarn.resourcemanager.scheduler.address&amp;lt;/name&amp;gt;
+        &amp;lt;value&amp;gt;hadoop-master:8030&amp;lt;/value&amp;gt;
+    &amp;lt;/property&amp;gt;
+    &amp;lt;property&amp;gt;
+        &amp;lt;name&amp;gt;yarn.resourcemanager.resource-tracker.address&amp;lt;/name&amp;gt;
+        &amp;lt;value&amp;gt;hadoop-master:8031&amp;lt;/value&amp;gt;
+    &amp;lt;/property&amp;gt;
+    &amp;lt;property&amp;gt;
+        &amp;lt;name&amp;gt;yarn.resourcemanager.admin.address&amp;lt;/name&amp;gt;
+        &amp;lt;value&amp;gt;hadoop-master:8033&amp;lt;/value&amp;gt;
+    &amp;lt;/property&amp;gt;
+    &amp;lt;property&amp;gt;
+        &amp;lt;name&amp;gt;yarn.resourcemanager.webapp.address&amp;lt;/name&amp;gt;
+        &amp;lt;value&amp;gt;hadoop-master:8088&amp;lt;/value&amp;gt;
+    &amp;lt;/property&amp;gt;
+&amp;lt;/configuration&amp;gt;
+&lt;/code&gt;&lt;/pre&gt;
+&lt;/div&gt;
+
+&lt;p&gt;3) 配置集群&lt;/p&gt;
+
+&lt;p&gt;每台机器都需要安装Hadoop，所以先在&lt;code class=&quot;highlighter-rouge&quot;&gt;hadoop-master&lt;/code&gt;上面安装好之后，通过scp命令拷贝到&lt;code class=&quot;highlighter-rouge&quot;&gt;hadoop-slave1&lt;/code&gt;和&lt;code class=&quot;highlighter-rouge&quot;&gt;hadoop-slave2&lt;/code&gt;上面。&lt;/p&gt;
+
+&lt;p&gt;1️⃣ 将hadoop安装目录分发到其他机器上面&lt;/p&gt;
+
+&lt;div class=&quot;highlighter-rouge&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;scp -r /home/bigdata/hadoop root@hadoop-slave1:/home/bigdata/
+scp -r /home/bigdata/hadoop root@hadoop-slave2:/home/bigdata/
+&lt;/code&gt;&lt;/pre&gt;
+&lt;/div&gt;
+
+&lt;p&gt;2️⃣ 修改各自机器的&lt;code class=&quot;highlighter-rouge&quot;&gt;/etc/profile&lt;/code&gt;配置文件，和上面的&lt;code class=&quot;highlighter-rouge&quot;&gt;hadoop-master&lt;/code&gt;机器一样&lt;/p&gt;
+
+&lt;p&gt;3️⃣ 修改&lt;code class=&quot;highlighter-rouge&quot;&gt;hadoop-master&lt;/code&gt;上面的&lt;code class=&quot;highlighter-rouge&quot;&gt;slaves&lt;/code&gt;文件&lt;/p&gt;
+
+&lt;div class=&quot;highlighter-rouge&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;cd /home/bigdata/hadoop/hadoop-2.7.4/etc/hadoop/
+vi slaves
+&lt;/code&gt;&lt;/pre&gt;
+&lt;/div&gt;
+
+&lt;p&gt;文件的内容如下：&lt;/p&gt;
+
+&lt;div class=&quot;highlighter-rouge&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;hadoop-slave1
+hadoop-slave2
+&lt;/code&gt;&lt;/pre&gt;
+&lt;/div&gt;
+
+&lt;p&gt;4) 格式化文件系统&lt;/p&gt;
+
+&lt;p&gt;在&lt;code class=&quot;highlighter-rouge&quot;&gt;hadoop-master&lt;/code&gt;机器上面执行如下命令：&lt;/p&gt;
+
+&lt;div class=&quot;highlighter-rouge&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;hadoop namenode -format
+&lt;/code&gt;&lt;/pre&gt;
+&lt;/div&gt;
+
+&lt;p&gt;5) 启动&lt;/p&gt;
+
+&lt;p&gt;在&lt;code class=&quot;highlighter-rouge&quot;&gt;hadoop-master&lt;/code&gt;机器上面执行如下命令：&lt;/p&gt;
+
+&lt;div class=&quot;highlighter-rouge&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;cd /home/bigdata/hadoop/hadoop-2.7.4/sbin
+./start-dfs.sh
+./start-yarn.sh
+&lt;/code&gt;&lt;/pre&gt;
+&lt;/div&gt;
+
+&lt;h4 id=&quot;4安装配置hbase&quot;&gt;（4）安装配置Hbase&lt;/h4&gt;
+
+&lt;p&gt;1) 解压&lt;/p&gt;
+
+&lt;div class=&quot;highlighter-rouge&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;mkdir -p /home/bigdata/hbase
+tar zxvf hbase-1.2.6-bin.tar.gz -C /home/bigdata/hbase/
+&lt;/code&gt;&lt;/pre&gt;
+&lt;/div&gt;
+
+&lt;p&gt;2) 配置环境变量&lt;/p&gt;
+
+&lt;div class=&quot;highlighter-rouge&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;vi /etc/profile
+
+#在文件末尾追加如下配置
+export HBASE_HOME=/home/bigdata/hbase/hbase-1.2.6
+export PATH=$PATH:${HBASE_HOME}/bin
+&lt;/code&gt;&lt;/pre&gt;
+&lt;/div&gt;
+
+&lt;p&gt;3) 配置Hbase配置文件&lt;/p&gt;
+
+&lt;p&gt;1️⃣ 修改&lt;code class=&quot;highlighter-rouge&quot;&gt;hbase-env.sh&lt;/code&gt;文件&lt;/p&gt;
+
+&lt;div class=&quot;highlighter-rouge&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;cd /home/bigdata/hbase/hbase-1.2.6/conf
+vi hbase-env.sh
+&lt;/code&gt;&lt;/pre&gt;
+&lt;/div&gt;
+
+&lt;p&gt;修改如下两个配置项：&lt;/p&gt;
+
+&lt;div class=&quot;highlighter-rouge&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;export JAVA_HOME=/home/bigdata/java/jdk1.8.0_144
+export HBASE_MANAGES_ZK=false
+&lt;/code&gt;&lt;/pre&gt;
+&lt;/div&gt;
+
+&lt;p&gt;2️⃣ 修改&lt;code class=&quot;highlighter-rouge&quot;&gt;hbase-site.xml&lt;/code&gt;文件&lt;/p&gt;
+
+&lt;div class=&quot;highlighter-rouge&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;cd /home/bigdata/hbase/hbase-1.2.6/conf
+vi hbase-site.xml
+&lt;/code&gt;&lt;/pre&gt;
+&lt;/div&gt;
+
+&lt;p&gt;配置文件的内容如下：&lt;/p&gt;
+
+&lt;div class=&quot;highlighter-rouge&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;&amp;lt;configuration&amp;gt;
+	&amp;lt;property&amp;gt;
+		&amp;lt;name&amp;gt;hbase.rootdir&amp;lt;/name&amp;gt;
+		&amp;lt;value&amp;gt;hdfs://hadoop-master:9000/hbase&amp;lt;/value&amp;gt;
+	&amp;lt;/property&amp;gt;
+	&amp;lt;property&amp;gt;
+		&amp;lt;name&amp;gt;hbase.cluster.distributed&amp;lt;/name&amp;gt;
+		&amp;lt;value&amp;gt;true&amp;lt;/value&amp;gt;
+	&amp;lt;/property&amp;gt;
+	&amp;lt;property&amp;gt;
+		&amp;lt;name&amp;gt;hbase.zookeeper.quorum&amp;lt;/name&amp;gt;
+		&amp;lt;value&amp;gt;hadoop-slave1,hadoop-slave2&amp;lt;/value&amp;gt;
+	&amp;lt;/property&amp;gt;
+	&amp;lt;property&amp;gt;
+		&amp;lt;name&amp;gt;hbase.zookeeper.property.clientPort&amp;lt;/name&amp;gt;
+		&amp;lt;value&amp;gt;2222&amp;lt;/value&amp;gt;
+	&amp;lt;/property&amp;gt;
+	&amp;lt;property&amp;gt;
+		&amp;lt;name&amp;gt;hbase.zookeeper.property.dataDir&amp;lt;/name&amp;gt;
+		&amp;lt;value&amp;gt;/home/bigdata/zookeeper/zookeeper-data&amp;lt;/value&amp;gt;
+	&amp;lt;/property&amp;gt;
+	&amp;lt;property&amp;gt;
+		&amp;lt;name&amp;gt;hbase.master&amp;lt;/name&amp;gt;
+		&amp;lt;value&amp;gt;master&amp;lt;/value&amp;gt;
+	&amp;lt;/property&amp;gt;
+&amp;lt;/configuration&amp;gt;
+&lt;/code&gt;&lt;/pre&gt;
+&lt;/div&gt;
+
+&lt;p&gt;3️⃣ 修改&lt;code class=&quot;highlighter-rouge&quot;&gt;regionservers&lt;/code&gt;文件&lt;/p&gt;
+
+&lt;div class=&quot;highlighter-rouge&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;cd /home/bigdata/hbase/hbase-1.2.6/conf
+vi regionservers
+&lt;/code&gt;&lt;/pre&gt;
+&lt;/div&gt;
+
+&lt;p&gt;文件内容如下：&lt;/p&gt;
+
+&lt;div class=&quot;highlighter-rouge&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;hadoop-slave1
+hadoop-slave2
+&lt;/code&gt;&lt;/pre&gt;
+&lt;/div&gt;
+
+&lt;p&gt;4) 同步到各台机器上面，同样修改环境变量&lt;/p&gt;
+
+&lt;h4 id=&quot;5安装配置hive&quot;&gt;（5）安装配置Hive&lt;/h4&gt;
+
+&lt;p&gt;1) 解压安装&lt;/p&gt;
+
+&lt;div class=&quot;highlighter-rouge&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;mkdir -p /home/bigdata/hive2
+tar zxvf apache-hive-2.1.1-bin.tar.gz -C /home/bigdata/hive2
+&lt;/code&gt;&lt;/pre&gt;
+&lt;/div&gt;
+
+&lt;p&gt;2) 配置环境变量&lt;/p&gt;
+
+&lt;div class=&quot;highlighter-rouge&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;export HIVE_HOME=/home/bigdata/hive2/apache-hive-2.1.1-bin
+export PATH=$PATH:${HIVE_HOME}/bin
+&lt;/code&gt;&lt;/pre&gt;
+&lt;/div&gt;
+
+&lt;p&gt;3) 安装配置MySQL&lt;/p&gt;
+
+&lt;p&gt;1️⃣ 安装MySQL&lt;/p&gt;
+
+&lt;p&gt;MySQL需要安装三个rpm包:&lt;code class=&quot;highlighter-rouge&quot;&gt;MySQL-server-5.5.57-1.el6.x86_64.rpm&lt;/code&gt;、&lt;code class=&quot;highlighter-rouge&quot;&gt;MySQL-client-5.5.57-1.el6.x86_64.rpm&lt;/code&gt; 和 &lt;code class=&quot;highlighter-rouge&quot;&gt;MySQL-devel-5.5.57-1.el6.x86_64.rpm&lt;/code&gt;。&lt;/p&gt;
+
+&lt;p&gt;安装的命令如下：&lt;/p&gt;
+
+&lt;div class=&quot;highlighter-rouge&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;rpm -ivh MySQL-server-5.5.57-1.el6.x86_64.rpm --force --nodeps
+rpm -ivh MySQL-client-5.5.57-1.el6.x86_64.rpm --force --nodeps
+rpm -ivh MySQL-devel-5.5.57-1.el6.x86_64.rpm --force --nodeps
+&lt;/code&gt;&lt;/pre&gt;
+&lt;/div&gt;
+
+&lt;p&gt;2️⃣ 设置开机启动&lt;/p&gt;
+
+&lt;div class=&quot;highlighter-rouge&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;chkconfig mysql on
+chkconfig --list mysql
+&lt;/code&gt;&lt;/pre&gt;
+&lt;/div&gt;
+
+&lt;p&gt;3️⃣ 设置root账号密码并配置远程连接&lt;/p&gt;
+
+&lt;div class=&quot;highlighter-rouge&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;mysql -uroot
+
+use mysql;
+#修改密码
+update user set Password = password('123456') where User='root';
+#授权远程连接
+GRANT ALL PRIVILEGES ON *.* TO 'root'@'%' IDENTIFIED BY 'root';
+#刷新权限
+FLUSH PRIVILEGES; 
+exit;
+&lt;/code&gt;&lt;/pre&gt;
+&lt;/div&gt;
+
+&lt;p&gt;4️⃣ 创建Hive用户&lt;/p&gt;
+
+&lt;div class=&quot;highlighter-rouge&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;mysql -uroot -p
+
+CREATE USER 'hive' IDENTIFIED BY 'hive';
+GRANT ALL PRIVILEGES ON *.* TO 'hive'@'hadoop-master' WITH GRANT OPTION;
+FLUSH PRIVILEGES; 
+&lt;/code&gt;&lt;/pre&gt;
+&lt;/div&gt;
+
+&lt;p&gt;5️⃣ 创建Hive表&lt;/p&gt;
+
+&lt;div class=&quot;highlighter-rouge&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;mysql -h hadoop-master -uhive -p
+
+CREATE DATABASE hive;
+&lt;/code&gt;&lt;/pre&gt;
+&lt;/div&gt;
+
+&lt;p&gt;4) Hive配置&lt;/p&gt;
+
+&lt;p&gt;先将提前准备好的mysql jdbc的jar(&lt;code class=&quot;highlighter-rouge&quot;&gt;mysql-connector-java-5.1.34.jar&lt;/code&gt;)拷贝到&lt;code class=&quot;highlighter-rouge&quot;&gt;/home/bigdata/hive2/apache-hive-2.1.1-bin/lib&lt;/code&gt;这个目录下面，然后将&lt;code class=&quot;highlighter-rouge&quot;&gt;/home/bigdata/hive2/apache-hive-2.1.1-bin/jdbc&lt;/code&gt;下面的&lt;code class=&quot;highlighter-rouge&quot;&gt;hive-jdbc-2.1.1-standalone.jar&lt;/code&gt;文件拷贝到&lt;code class=&quot;highlighter-rouge&quot;&gt;/home/bigdata/hive2/apache-hive-2.1.1-bin/lib&lt;/code&gt;下面。接下来进入到配置文件夹所在的目录进行配置：&lt;/p&gt;
+
+&lt;div class=&quot;highlighter-rouge&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;cd /home/bigdata/hive2/apache-hive-2.1.1-bin/conf
+&lt;/code&gt;&lt;/pre&gt;
+&lt;/div&gt;
+
+&lt;p&gt;1️⃣ 创建&lt;code class=&quot;highlighter-rouge&quot;&gt;hive-default.xml&lt;/code&gt;文件&lt;/p&gt;
+
+&lt;div class=&quot;highlighter-rouge&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;cp hive-default.xml.template hive-default.xml
+&lt;/code&gt;&lt;/pre&gt;
+&lt;/div&gt;
+
+&lt;p&gt;2️⃣ 创建&lt;code class=&quot;highlighter-rouge&quot;&gt;hive-site.xml&lt;/code&gt;文件&lt;/p&gt;
+
+&lt;div class=&quot;highlighter-rouge&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;vi hive-site.xml
+&lt;/code&gt;&lt;/pre&gt;
+&lt;/div&gt;
+
+&lt;p&gt;配置文件的内容为：&lt;/p&gt;
+
+&lt;div class=&quot;highlighter-rouge&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;&amp;lt;configuration&amp;gt;
+  &amp;lt;property&amp;gt;
+    &amp;lt;name&amp;gt;javax.jdo.option.ConnectionURL&amp;lt;/name&amp;gt;
+    &amp;lt;value&amp;gt;jdbc:mysql://hadoop-master:3306/hive?createDatabaseIfNotExist=true&amp;lt;/value&amp;gt;
+    &amp;lt;description&amp;gt;JDBC connect string for a JDBC metastore&amp;lt;/description&amp;gt;
+  &amp;lt;/property&amp;gt;
+  &amp;lt;property&amp;gt;
+    &amp;lt;name&amp;gt;javax.jdo.option.ConnectionDriverName&amp;lt;/name&amp;gt;
+    &amp;lt;value&amp;gt;com.mysql.jdbc.Driver&amp;lt;/value&amp;gt;
+    &amp;lt;description&amp;gt;Driver class name for a JDBC metastore&amp;lt;/description&amp;gt;
+  &amp;lt;/property&amp;gt;
+  &amp;lt;property&amp;gt;
+    &amp;lt;name&amp;gt;javax.jdo.option.ConnectionUserName&amp;lt;/name&amp;gt;
+    &amp;lt;value&amp;gt;hive&amp;lt;/value&amp;gt;
+    &amp;lt;description&amp;gt;username to use against metastore database&amp;lt;/description&amp;gt;
+  &amp;lt;/property&amp;gt;
+  &amp;lt;property&amp;gt;
+    &amp;lt;name&amp;gt;javax.jdo.option.ConnectionPassword&amp;lt;/name&amp;gt;
+    &amp;lt;value&amp;gt;hive&amp;lt;/value&amp;gt;
+    &amp;lt;description&amp;gt;password to use against metastore database&amp;lt;/description&amp;gt;
+  &amp;lt;/property&amp;gt;
+  &amp;lt;property&amp;gt;
+    &amp;lt;name&amp;gt;datanucleus.autoCreateSchema&amp;lt;/name&amp;gt;
+    &amp;lt;value&amp;gt;true&amp;lt;/value&amp;gt;
+  &amp;lt;/property&amp;gt;
+  &amp;lt;property&amp;gt;
+    &amp;lt;name&amp;gt;datanucleus.autoCreateTables&amp;lt;/name&amp;gt;
+    &amp;lt;value&amp;gt;true&amp;lt;/value&amp;gt;
+  &amp;lt;/property&amp;gt;
+  &amp;lt;property&amp;gt;
+    &amp;lt;name&amp;gt;datanucleus.autoCreateColumns&amp;lt;/name&amp;gt;
+    &amp;lt;value&amp;gt;true&amp;lt;/value&amp;gt;
+  &amp;lt;/property&amp;gt;
+&amp;lt;/configuration&amp;gt;
+&lt;/code&gt;&lt;/pre&gt;
+&lt;/div&gt;
+
+&lt;p&gt;3️⃣ 客户端配置&lt;/p&gt;
+
+&lt;p&gt;将hive2目录拷贝到&lt;code class=&quot;highlighter-rouge&quot;&gt;hadoop-slave1&lt;/code&gt;和&lt;code class=&quot;highlighter-rouge&quot;&gt;hadoop-slave2&lt;/code&gt;上面：&lt;/p&gt;
+
+&lt;div class=&quot;highlighter-rouge&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;scp -r /home/bigdata/hive2 root@hadoop-slave1:/home/bigdata/
+scp -r /home/bigdata/hive2 root@hadoop-slave2:/home/bigdata/
+&lt;/code&gt;&lt;/pre&gt;
+&lt;/div&gt;
+
+&lt;p&gt;然后分别修改&lt;code class=&quot;highlighter-rouge&quot;&gt;/home/bigdata/hive2/apache-hive-2.1.1-bin/conf/hive-site.xml&lt;/code&gt;文件的内容如下：&lt;/p&gt;
+
+&lt;div class=&quot;highlighter-rouge&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;&amp;lt;configuration&amp;gt;
+	&amp;lt;property&amp;gt;  
+		&amp;lt;name&amp;gt;hive.metastore.uris&amp;lt;/name&amp;gt;  
+    	&amp;lt;value&amp;gt;thrift://hadoop-master:9083&amp;lt;/value&amp;gt;  
+    &amp;lt;/property&amp;gt;
+&amp;lt;/configuration&amp;gt;
+&lt;/code&gt;&lt;/pre&gt;
+&lt;/div&gt;
+
+&lt;p&gt;5) 启动&lt;/p&gt;
+
+&lt;p&gt;启动metastore&lt;/p&gt;
+
+&lt;div class=&quot;highlighter-rouge&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;hive --service metastore &amp;amp;
+&lt;/code&gt;&lt;/pre&gt;
+&lt;/div&gt;
+
+&lt;h3 id=&quot;3组件启动顺序&quot;&gt;3、组件启动顺序&lt;/h3&gt;
+
+&lt;p&gt;(1) Hadoop&lt;/p&gt;
+
+&lt;p&gt;在&lt;code class=&quot;highlighter-rouge&quot;&gt;hadoop-master&lt;/code&gt;上面启动&lt;/p&gt;
+
+&lt;div class=&quot;highlighter-rouge&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;cd $HADOOP_HOME/sbin
+./start-all.sh
+&lt;/code&gt;&lt;/pre&gt;
+&lt;/div&gt;
+
+&lt;p&gt;(2) zookeeper&lt;/p&gt;
+
+&lt;p&gt;分别到&lt;code class=&quot;highlighter-rouge&quot;&gt;hadoop-slave1&lt;/code&gt;和&lt;code class=&quot;highlighter-rouge&quot;&gt;hadoop-slave2&lt;/code&gt;上面执行如下代码：&lt;/p&gt;
+
+&lt;div class=&quot;highlighter-rouge&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;cd $ZOOKEEPER_HOME/bin
+./zkServer.sh start
+&lt;/code&gt;&lt;/pre&gt;
+&lt;/div&gt;
+
+&lt;p&gt;(3) hbase&lt;/p&gt;
+
+&lt;p&gt;在&lt;code class=&quot;highlighter-rouge&quot;&gt;hadoop-master&lt;/code&gt;上面启动&lt;/p&gt;
+
+&lt;div class=&quot;highlighter-rouge&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;cd $HBASE_HOME/bin
+./start-hbase.sh
+&lt;/code&gt;&lt;/pre&gt;
+&lt;/div&gt;
+
+&lt;p&gt;(4) hive&lt;/p&gt;
+
+&lt;p&gt;在&lt;code class=&quot;highlighter-rouge&quot;&gt;hadoop-master&lt;/code&gt;上面启动&lt;/p&gt;
+
+&lt;div class=&quot;highlighter-rouge&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;hive --service metastore &amp;amp;
+nohup $HIVE_HOME/bin/hiveserver2 &amp;amp;
+&lt;/code&gt;&lt;/pre&gt;
+&lt;/div&gt;
+
+&lt;h3 id=&quot;4组件关闭顺序&quot;&gt;4、组件关闭顺序&lt;/h3&gt;
+
+&lt;p&gt;(1) Hbase&lt;/p&gt;
+
+&lt;p&gt;在&lt;code class=&quot;highlighter-rouge&quot;&gt;hadoop-master&lt;/code&gt;上面启动&lt;/p&gt;
+
+&lt;div class=&quot;highlighter-rouge&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;cd $HBASE_HOME/bin
+./stop-hbase.sh
+&lt;/code&gt;&lt;/pre&gt;
+&lt;/div&gt;
+
+&lt;p&gt;(2) Hive&lt;/p&gt;
+
+&lt;div class=&quot;highlighter-rouge&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;ps -ef | grep hive
+kill -9 pid
+&lt;/code&gt;&lt;/pre&gt;
+&lt;/div&gt;
+
+&lt;p&gt;(3) Zookeeper&lt;/p&gt;
+
+&lt;p&gt;分别到&lt;code class=&quot;highlighter-rouge&quot;&gt;hadoop-slave1&lt;/code&gt;和&lt;code class=&quot;highlighter-rouge&quot;&gt;hadoop-slave2&lt;/code&gt;上面执行如下代码：&lt;/p&gt;
+
+&lt;div class=&quot;highlighter-rouge&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;cd $ZOOKEEPER_HOME/bin
+./zkServer.sh stop
+&lt;/code&gt;&lt;/pre&gt;
+&lt;/div&gt;
+
+&lt;p&gt;(4) Hadoop&lt;/p&gt;
+
+&lt;p&gt;在&lt;code class=&quot;highlighter-rouge&quot;&gt;hadoop-master&lt;/code&gt;上面执行：&lt;/p&gt;
+
+&lt;div class=&quot;highlighter-rouge&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;cd $HADOOP_HOME/sbin
+./stop-all.sh
+&lt;/code&gt;&lt;/pre&gt;
+&lt;/div&gt;
+
+&lt;h3 id=&quot;参考资料&quot;&gt;参考资料&lt;/h3&gt;
+
+&lt;p&gt;1、&lt;a href=&quot;http://blog.csdn.net/u012441621/article/details/50879225&quot;&gt;Centos环境下卸载自带的JDK&lt;/a&gt;&lt;/p&gt;
+</description>
+        <pubDate>Sun, 10 Sep 2017 10:08:00 +0800</pubDate>
+        <link>http://blog.devzeng.com/blog/install-hadoop-in-centos.html</link>
+        <guid isPermaLink="true">http://blog.devzeng.com/blog/install-hadoop-in-centos.html</guid>
+        
+        <category>Note</category>
+        
+        
+      </item>
+    
+      <item>
+        <title>使用Kettle导入Excel数据</title>
+        <description>&lt;p&gt;ETL（Extraction, Transformation, and Loading），在日常的工作中我们经常会遇到各种数据的处理，转换，迁移。比如将Excel的数据导入到数据库，将SQLServer里面的数据转换后存到Oracle，将数据库的数据提取到文本等。&lt;/p&gt;
+
+&lt;p&gt;最开始都是使用写代码然后进行处理，多了几次之后就觉得麻烦了。后来了解到&lt;a href=&quot;http://community.pentaho.com/projects/data-integration/&quot;&gt;Kettle&lt;/a&gt;这个工具，首先无需安装直接就能使用，支持图形化的GUI设计界面，然后可以以工作流的形式流转，在做一些简单或复杂的数据抽取、质量检测、数据清洗、数据转换、数据过滤等方面有着比较稳定的表现，通过熟练的使用能在数据处理方面减少不少的工作量，提高工作效率。&lt;/p&gt;
+
+&lt;p&gt;&lt;img src=&quot;/images/load-excel-data-with-kettle/kettle-logo.png&quot; alt=&quot;kettle-logo.png&quot; /&gt;&lt;/p&gt;
+
+&lt;h3 id=&quot;下载安装&quot;&gt;下载安装&lt;/h3&gt;
+
+&lt;p&gt;Kettle是使用Java编写的，所以需要安装Java的运行环境。Kettle支持跨平台能在各种系统下使用，下面以在MacOS上面为例介绍如何配置。&lt;/p&gt;
+
+&lt;h4 id=&quot;1环境准备&quot;&gt;1、环境准备&lt;/h4&gt;
+
+&lt;p&gt;在命令行执行&lt;code class=&quot;highlighter-rouge&quot;&gt;java -version&lt;/code&gt;，查看当前是否安装JDK。如果出现如下的内容：&lt;/p&gt;
+
+&lt;div class=&quot;highlighter-rouge&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;java version &quot;1.8.0_91&quot;
+Java(TM) SE Runtime Environment (build 1.8.0_91-b14)
+Java HotSpot(TM) 64-Bit Server VM (build 25.91-b14, mixed mode)
+&lt;/code&gt;&lt;/pre&gt;
+&lt;/div&gt;
+
+&lt;p&gt;表示Java环境已经安装，如果没有的话需要先安装JDK。&lt;/p&gt;
+
+&lt;p&gt;#####（1）下载安装JDK&lt;/p&gt;
+
+&lt;p&gt;到Oracle的官网上下载最新的版本JDK，网址如下：&lt;/p&gt;
+
+&lt;div class=&quot;highlighter-rouge&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;http://www.oracle.com/technetwork/java/javase/downloads/jdk8-downloads-2133151.html
+&lt;/code&gt;&lt;/pre&gt;
+&lt;/div&gt;
+
+&lt;p&gt;选择需要的版本下载即可，下载完成直接双击下一步安装：&lt;/p&gt;
+
+&lt;p&gt;&lt;img src=&quot;/images/load-excel-data-with-kettle/jdk-download.png&quot; alt=&quot;jdk-download.png&quot; /&gt;&lt;/p&gt;
+
+&lt;h5 id=&quot;2配置环境变量&quot;&gt;（2）配置环境变量&lt;/h5&gt;
+
+&lt;p&gt;安装完成JDK之后，一般会自动安装在&lt;code class=&quot;highlighter-rouge&quot;&gt;/Library/Java/JavaVirtualMachines/&lt;/code&gt;这个目录下面，可以通过&lt;code class=&quot;highlighter-rouge&quot;&gt;/usr/libexec/java_home&lt;/code&gt;这个查看路径。&lt;/p&gt;
+
+&lt;div class=&quot;highlighter-rouge&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;vim ~/.bash_profile
+&lt;/code&gt;&lt;/pre&gt;
+&lt;/div&gt;
+
+&lt;p&gt;在里面新增如下记录(当前安装的JDK版本是1.8)：&lt;/p&gt;
+
+&lt;div class=&quot;highlighter-rouge&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;export JAVA_8_HOME=`/usr/libexec/java_home -v 1.8`
+export JAVA_HOME=$JAVA_8_HOME
+&lt;/code&gt;&lt;/pre&gt;
+&lt;/div&gt;
+
+&lt;p&gt;保存，然后使用&lt;code class=&quot;highlighter-rouge&quot;&gt;source ~/.bash_profile&lt;/code&gt;。&lt;/p&gt;
+
+&lt;h4 id=&quot;2下载&quot;&gt;2、下载&lt;/h4&gt;
+
+&lt;p&gt;打开Kettle官网：&lt;code class=&quot;highlighter-rouge&quot;&gt;http://community.pentaho.com/projects/data-integration/&lt;/code&gt; 在网页的下面有下载的入口，当前的稳定版本是&lt;code class=&quot;highlighter-rouge&quot;&gt;7.1&lt;/code&gt;:&lt;/p&gt;
+
+&lt;p&gt;&lt;img src=&quot;/images/load-excel-data-with-kettle/kettle-download.png&quot; alt=&quot;kettle-download.png&quot; /&gt;&lt;/p&gt;
+
+&lt;h4 id=&quot;3启动&quot;&gt;3、启动&lt;/h4&gt;
+
+&lt;p&gt;下载完成后解压压缩包，在命令行进入到kettle的目录（文件夹的名字一般是&lt;code class=&quot;highlighter-rouge&quot;&gt;data-integration&lt;/code&gt;）。然后执行&lt;code class=&quot;highlighter-rouge&quot;&gt;./spoon.sh&lt;/code&gt;即可启动Kettle。&lt;/p&gt;
+
+&lt;p&gt;&lt;img src=&quot;/images/load-excel-data-with-kettle/hello-kettle.png&quot; alt=&quot;hello-kettle.png&quot; /&gt;&lt;/p&gt;
+
+&lt;h3 id=&quot;使用示例&quot;&gt;使用示例&lt;/h3&gt;
+
+&lt;p&gt;近期工作中经常需要协助同事将Excel里面的数据进行处理之后保存到SQLServer数据里面去，最开始是使用Python脚本解析Excel然后生成SQL语句到服务器上面执行的，每次有字段的调整都要改代码（代码如下）：&lt;/p&gt;
+
+&lt;div class=&quot;highlighter-rouge&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;def parse_excel_file(file, index=1):
+    workbook = xlrd.open_workbook(file)
+    sheets = workbook.sheets()
+    sheets_data = []
+    for sheet in sheets:
+        print &quot;[解析]&quot;, sheet.name
+        sheet_data = []
+        for i in range(index, sheet.nrows):
+            sheet_row_data = []
+            for j in range(0, sheet.ncols):
+                cell = sheet.cell(i, j)
+                # 数据类型 0 empty,1 string, 2 number, 3 date, 4 boolean, 5 error
+                ctype = cell.ctype 
+                # 数据转换
+                cvalue = cell.value
+                if ctype == 2:
+                    if isinstance(cvalue, float):
+                        cvalue = str(long(cvalue))
+                    elif isinstance(cvalue, int):
+                        cvalue = str(cvalue)
+                elif ctype == 1:
+                    cvalue = cvalue.encode('UTF-8')
+                sheet_row_data.append(cvalue)
+            sheet_data.append(sheet_row_data)
+        sheets_data.append(sheet_data)
+    return sheets_data
+&lt;/code&gt;&lt;/pre&gt;
+&lt;/div&gt;
+
+&lt;p&gt;下面以如何使用Kettle通过配置的方式简化操作，具体的操作步骤如下：&lt;/p&gt;
+
+&lt;h4 id=&quot;1创建数据转换&quot;&gt;1、创建数据转换&lt;/h4&gt;
+
+&lt;p&gt;执行&lt;code class=&quot;highlighter-rouge&quot;&gt;./spoon.sh&lt;/code&gt;后启动Kettle的界面，在&lt;code class=&quot;highlighter-rouge&quot;&gt;主对象树&lt;/code&gt; -&amp;gt; &lt;code class=&quot;highlighter-rouge&quot;&gt;转换&lt;/code&gt;菜单上面单击右键新建转换。&lt;/p&gt;
+
+&lt;p&gt;&lt;img src=&quot;/images/load-excel-data-with-kettle/kettle-demo-01.png&quot; alt=&quot;kettle-demo-01.png&quot; /&gt;&lt;/p&gt;
+
+&lt;h4 id=&quot;2配置数据转换&quot;&gt;2、配置数据转换&lt;/h4&gt;
+
+&lt;p&gt;#####（1）从左边的&lt;code class=&quot;highlighter-rouge&quot;&gt;核心对象&lt;/code&gt;里面选中控件直接拖到右边的区域，各个控件之间可以用箭头连起来(按住Shift直接拖即可)&lt;/p&gt;
+
+&lt;p&gt;&lt;img src=&quot;/images/load-excel-data-with-kettle/kettle-demo-03.png&quot; alt=&quot;kettle-demo-03.png&quot; /&gt;&lt;/p&gt;
+
+&lt;p&gt;#####（2）双击Excel输入配置解析&lt;/p&gt;
+
+&lt;p&gt;&lt;img src=&quot;/images/load-excel-data-with-kettle/kettle-demo-04.png&quot; alt=&quot;kettle-demo-04.png&quot; /&gt;&lt;/p&gt;
+
+&lt;p&gt;1) 点击&lt;code class=&quot;highlighter-rouge&quot;&gt;浏览&lt;/code&gt;选择Excel文档的路径(xls格式），选择完成后点击&lt;code class=&quot;highlighter-rouge&quot;&gt;增加&lt;/code&gt;。&lt;/p&gt;
+
+&lt;p&gt;2）选择&lt;code class=&quot;highlighter-rouge&quot;&gt;工作表&lt;/code&gt;的选项卡，在此页面配置要解析的Sheet和起始行列信息。&lt;/p&gt;
+
+&lt;p&gt;&lt;img src=&quot;/images/load-excel-data-with-kettle/kettle-demo-05.png&quot; alt=&quot;kettle-demo-05.png&quot; /&gt;&lt;/p&gt;
+
+&lt;p&gt;3）选择&lt;code class=&quot;highlighter-rouge&quot;&gt;字段&lt;/code&gt;的选项卡，在此页面点击&lt;code class=&quot;highlighter-rouge&quot;&gt;获取来自头部数据的字段&lt;/code&gt;，Kettle会自动获取表头生成字段信息。&lt;/p&gt;
+
+&lt;p&gt;&lt;img src=&quot;/images/load-excel-data-with-kettle/kettle-demo-06.png&quot; alt=&quot;kettle-demo-06.png&quot; /&gt;&lt;/p&gt;
+
+&lt;p&gt;#####（3）使用JavaScript代码自动生成主键&lt;/p&gt;
+
+&lt;p&gt;由于业务方需要在将数据保存到数据库的时候需要指定一个主键，这里可以直接使用JavaScript的代码来自动生成一个UUID作为主键。&lt;/p&gt;
+
+&lt;p&gt;&lt;img src=&quot;/images/load-excel-data-with-kettle/kettle-demo-07.png&quot; alt=&quot;kettle-demo-07.png&quot; /&gt;&lt;/p&gt;
+
+&lt;p&gt;#####（4）输出数据到目标数据库&lt;/p&gt;
+
+&lt;p&gt;1）配置数据源&lt;/p&gt;
+
+&lt;p&gt;&lt;img src=&quot;/images/load-excel-data-with-kettle/kettle-demo-08-1.png&quot; alt=&quot;kettle-demo-08.png&quot; /&gt;&lt;/p&gt;
+
+&lt;p&gt;配置完成之后点击测试，如果报错(缺少驱动包)，需要下载对应数据库的驱动包放到Kettle目录下面的&lt;code class=&quot;highlighter-rouge&quot;&gt;lib&lt;/code&gt;目录下。&lt;/p&gt;
+
+&lt;p&gt;&lt;img src=&quot;/images/load-excel-data-with-kettle/kettle-demo-08-1-error.png&quot; alt=&quot;kettle-demo-08.png&quot; /&gt;&lt;/p&gt;
+
+&lt;p&gt;2）配置目标表和字段映射&lt;/p&gt;
+
+&lt;p&gt;配置好数据源后需要配置目标表的信息，如表名、数据库字段对应等。&lt;/p&gt;
+
+&lt;p&gt;&lt;img src=&quot;/images/load-excel-data-with-kettle/kettle-demo-08-2.png&quot; alt=&quot;kettle-demo-08-2.png&quot; /&gt;&lt;/p&gt;
+
+&lt;p&gt;点击输入字段映射可以将输入的数据字段和目标表的数据库字段进行一一对应起来。&lt;/p&gt;
+
+&lt;h4 id=&quot;3运行&quot;&gt;3、运行&lt;/h4&gt;
+
+&lt;p&gt;配置完成后点击左上角的运行按钮直接就可以运行转换任务。&lt;/p&gt;
+
+&lt;p&gt;&lt;img src=&quot;/images/load-excel-data-with-kettle/kettle-demo-run.png&quot; alt=&quot;kettle-demo-run.png&quot; /&gt;&lt;/p&gt;
+
+&lt;h3 id=&quot;参考资料&quot;&gt;参考资料&lt;/h3&gt;
+
+&lt;p&gt;1、&lt;a href=&quot;http://community.pentaho.com/projects/data-integration/&quot;&gt;Kettle 官网&lt;/a&gt;&lt;/p&gt;
+
+&lt;p&gt;2、&lt;a href=&quot;http://blog.csdn.net/man_earth/article/details/39525651&quot;&gt;kettle转换中使用javascript例子整理（1）&lt;/a&gt;&lt;/p&gt;
+
+&lt;p&gt;3、&lt;a href=&quot;http://www.cnblogs.com/melodyluo/p/3374382.html&quot;&gt;kettle JavaScript脚本&lt;/a&gt;&lt;/p&gt;
+</description>
+        <pubDate>Sun, 20 Aug 2017 10:08:00 +0800</pubDate>
+        <link>http://blog.devzeng.com/blog/load-excel-data-with-kettle.html</link>
+        <guid isPermaLink="true">http://blog.devzeng.com/blog/load-excel-data-with-kettle.html</guid>
+        
+        <category>Note</category>
+        
+        
+      </item>
+    
+      <item>
+        <title>使用Dockerfile构建Docker镜像</title>
+        <description>&lt;p&gt;&lt;img src=&quot;/images/install-docker-in-centos/docker-logo-compressed.png&quot; alt=&quot;docker-logo.png&quot; /&gt;&lt;/p&gt;
+
+&lt;p&gt;Docker中有个非常重要的概念叫做——镜像（Image）。Docker 镜像是一个特殊的文件系统，除了提供容器运行时所需的程序、库、资源、配置等文件外，还包含了一些为运行时准备的一些配置参数（如匿名卷、环境变量、用户等）。镜像不包含任何动态数据，其内容在构建之后也不会被改变。&lt;/p&gt;
+
+&lt;p&gt;镜像的定制实际上就是定制每一层所添加的配置、文件。如果我们可以把每一层修改、安装、构建、操作的命令都写入一个脚本，用这个脚本来构建、定制镜像，那么之前提及的无法重复的问题、镜像构建透明性的问题、体积的问题就都会解决。这个脚本就是 Dockerfile。&lt;/p&gt;
+
+&lt;p&gt;Dockerfile 是一个文本文件，其内包含了一条条的指令(Instruction)，每一条指令构建一层，因此每一条指令的内容，就是描述该层应当如何构建。&lt;/p&gt;
+
+&lt;h3 id=&quot;dockerfile语法说明&quot;&gt;Dockerfile语法说明&lt;/h3&gt;
+
+&lt;h5 id=&quot;1from-指定基础镜像&quot;&gt;1、FROM: 指定基础镜像。&lt;/h5&gt;
+
+&lt;p&gt;定制镜像的时候都是以一个镜像为基础，在这个基础上面进行定制。&lt;code class=&quot;highlighter-rouge&quot;&gt;FROM&lt;/code&gt;在&lt;code class=&quot;highlighter-rouge&quot;&gt;Dockerfile&lt;/code&gt;中是必须的指令，而且必须是第一条指令。&lt;/p&gt;
+
+&lt;ul&gt;
+  &lt;li&gt;1）在Docker Hub上有非常多的官方镜像，比如服务类(nginx/redis)、语言类(node/openjdk/python)、操作系统类(ubuntu/debian/centos)等，我们可以直接拿来使用。&lt;/li&gt;
+  &lt;li&gt;2）除了选择现有的镜像作为基础镜像外，Docker还存在一个特殊的镜像，名为&lt;code class=&quot;highlighter-rouge&quot;&gt;scratch&lt;/code&gt;。这个镜像是虚拟的概念，并不实际存在，它表示一个空白的镜像。&lt;/li&gt;
+&lt;/ul&gt;
+
+&lt;h5 id=&quot;2run-执行命令&quot;&gt;2、RUN: 执行命令&lt;/h5&gt;
+
+&lt;p&gt;run指令是用来执行命令行命令的，由于命令行的强大能力，run指令在定制镜像时是最常用的指令之一。其格式有两种：&lt;/p&gt;
+
+&lt;ul&gt;
+  &lt;li&gt;shell格式： &lt;code class=&quot;highlighter-rouge&quot;&gt;RUN 命令&lt;/code&gt;，就像直接在命令行中输入的命令一样，如&lt;code class=&quot;highlighter-rouge&quot;&gt;RUN echo 'hello, world!' &amp;gt; hello.txt&lt;/code&gt;&lt;/li&gt;
+  &lt;li&gt;exec格式：&lt;code class=&quot;highlighter-rouge&quot;&gt;RUN ['可执行文件', '参数1', '参数2']&lt;/code&gt;，类似于函数调用，将可执行文件和参数分开，如&lt;code class=&quot;highlighter-rouge&quot;&gt;RUN [ &quot;sh&quot;, &quot;-c&quot;, &quot;echo $HOME&quot; ]&lt;/code&gt;&lt;/li&gt;
+&lt;/ul&gt;
+
+&lt;blockquote&gt;
+  &lt;p&gt;&lt;code class=&quot;highlighter-rouge&quot;&gt;Dockerfile&lt;/code&gt;中每一个指令都会建立一层，&lt;code class=&quot;highlighter-rouge&quot;&gt;RUN&lt;/code&gt;也不例外。每一个RUN的行为，就和刚才我们手工建立镜像的过程一样:新建立一层，在其上执行这些命令，执行结束后，commit这一层的修改，构成新的镜像。所以我们在使用的时候尽可能将指令进行整合（可以使用&amp;amp;&amp;amp;将各个所需命令串联起来）。&lt;/p&gt;
+&lt;/blockquote&gt;
+
+&lt;h4 id=&quot;3cmd容器启动命令&quot;&gt;3、CMD：容器启动命令&lt;/h4&gt;
+
+&lt;p&gt;CMD 指令的格式和 RUN 相似，也是两种格式：&lt;/p&gt;
+
+&lt;ul&gt;
+  &lt;li&gt;shell 格式：&lt;code class=&quot;highlighter-rouge&quot;&gt;CMD &amp;lt;命令&amp;gt;&lt;/code&gt;&lt;/li&gt;
+  &lt;li&gt;exec 格式：&lt;code class=&quot;highlighter-rouge&quot;&gt;CMD [&quot;可执行文件&quot;, &quot;参数1&quot;, &quot;参数2&quot;...]&lt;/code&gt;&lt;/li&gt;
+&lt;/ul&gt;
+
+&lt;p&gt;在指定了 &lt;code class=&quot;highlighter-rouge&quot;&gt;ENTRYPOINT&lt;/code&gt; 指令后，用 CMD 指定具体的参数。参数列表格式：&lt;code class=&quot;highlighter-rouge&quot;&gt;CMD [&quot;参数1&quot;, &quot;参数2&quot;...]&lt;/code&gt;&lt;/p&gt;
+
+&lt;h4 id=&quot;4copy复制文件&quot;&gt;4、COPY：复制文件&lt;/h4&gt;
+
+&lt;p&gt;和 RUN 指令一样，也有两种格式，一种类似于命令行，一种类似于函数调用：&lt;/p&gt;
+
+&lt;ul&gt;
+  &lt;li&gt;&lt;code class=&quot;highlighter-rouge&quot;&gt;COPY &amp;lt;源路径&amp;gt;... &amp;lt;目标路径&amp;gt;&lt;/code&gt;&lt;/li&gt;
+  &lt;li&gt;&lt;code class=&quot;highlighter-rouge&quot;&gt;COPY [&quot;&amp;lt;源路径1&amp;gt;&quot;,... &quot;&amp;lt;目标路径&amp;gt;&quot;]&lt;/code&gt;&lt;/li&gt;
+&lt;/ul&gt;
+
+&lt;p&gt;COPY 指令将从构建上下文目录中&lt;code class=&quot;highlighter-rouge&quot;&gt;&amp;lt;源路径&amp;gt;&lt;/code&gt;的文件复制到新的一层的镜像内的&lt;code class=&quot;highlighter-rouge&quot;&gt;&amp;lt;目标路径&amp;gt;&lt;/code&gt;位置。&lt;/p&gt;
+
+&lt;h4 id=&quot;5env-设置环境变量&quot;&gt;5、ENV: 设置环境变量&lt;/h4&gt;
+
+&lt;p&gt;格式有两种：&lt;/p&gt;
+
+&lt;ul&gt;
+  &lt;li&gt;&lt;code class=&quot;highlighter-rouge&quot;&gt;ENV &amp;lt;key&amp;gt; &amp;lt;value&amp;gt;&lt;/code&gt;&lt;/li&gt;
+  &lt;li&gt;&lt;code class=&quot;highlighter-rouge&quot;&gt;ENV &amp;lt;key1&amp;gt;=&amp;lt;value1&amp;gt; &amp;lt;key2&amp;gt;=&amp;lt;value2&amp;gt;...&lt;/code&gt;&lt;/li&gt;
+&lt;/ul&gt;
+
+&lt;p&gt;这个指令很简单，就是设置环境变量而已，无论是后面的其它指令，如&lt;code class=&quot;highlighter-rouge&quot;&gt;RUN&lt;/code&gt;，还是运行时的应用，都可以直接使用这里定义的环境变量。&lt;/p&gt;
+
+&lt;div class=&quot;highlighter-rouge&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;ENV VERSION=1.0 DEBUG=on \
+    NAME=&quot;Happy Feet&quot;
+&lt;/code&gt;&lt;/pre&gt;
+&lt;/div&gt;
+
+&lt;p&gt;这个例子中演示了如何换行，以及对含有空格的值用双引号括起来的办法，这和 Shell 下的行为是一致的。&lt;/p&gt;
+
+&lt;h4 id=&quot;6expose-声明端口&quot;&gt;6、EXPOSE: 声明端口&lt;/h4&gt;
+
+&lt;p&gt;格式为 &lt;code class=&quot;highlighter-rouge&quot;&gt;EXPOSE &amp;lt;端口1&amp;gt; [&amp;lt;端口2&amp;gt;...]&lt;/code&gt;。&lt;/p&gt;
+
+&lt;p&gt;&lt;code class=&quot;highlighter-rouge&quot;&gt;EXPOSE&lt;/code&gt;指令是声明运行时容器提供服务端口，这只是一个声明，在运行时并不会因为这个声明应用就会开启这个端口的服务。在&lt;code class=&quot;highlighter-rouge&quot;&gt;Dockerfile&lt;/code&gt;中写入这样的声明有两个好处，一个是帮助镜像使用者理解这个镜像服务的守护端口，以方便配置映射；另一个用处则是在运行时使用随机端口映射时，也就是&lt;code class=&quot;highlighter-rouge&quot;&gt;docker run -P&lt;/code&gt;时，会自动随机映射&lt;code class=&quot;highlighter-rouge&quot;&gt;EXPOSE&lt;/code&gt;的端口。&lt;/p&gt;
+
+&lt;p&gt;要将&lt;code class=&quot;highlighter-rouge&quot;&gt;EXPOSE&lt;/code&gt;和在运行时使用&lt;code class=&quot;highlighter-rouge&quot;&gt;-p &amp;lt;宿主端口&amp;gt;:&amp;lt;容器端口&amp;gt;&lt;/code&gt;区分开来。&lt;code class=&quot;highlighter-rouge&quot;&gt;-p&lt;/code&gt;，是映射宿主端口和容器端口，换句话说，就是将容器的对应端口服务公开给外界访问，而&lt;code class=&quot;highlighter-rouge&quot;&gt;EXPOSE&lt;/code&gt;仅仅是声明容器打算使用什么端口而已，并不会自动在宿主进行端口映射。&lt;/p&gt;
+
+&lt;h4 id=&quot;7workdir-指定工作目录&quot;&gt;7、WORKDIR: 指定工作目录&lt;/h4&gt;
+
+&lt;p&gt;格式为 &lt;code class=&quot;highlighter-rouge&quot;&gt;WORKDIR &amp;lt;工作目录路径&amp;gt;&lt;/code&gt;。&lt;/p&gt;
+
+&lt;p&gt;使用 &lt;code class=&quot;highlighter-rouge&quot;&gt;WORKDIR&lt;/code&gt; 指令可以来指定工作目录（或者称为当前目录），以后各层的当前目录就被改为指定的目录，如该目录不存在，&lt;code class=&quot;highlighter-rouge&quot;&gt;WORKDIR&lt;/code&gt; 会帮你建立目录。&lt;/p&gt;
+
+&lt;h3 id=&quot;构建node-web服务镜像&quot;&gt;构建Node web服务镜像&lt;/h3&gt;
+
+&lt;p&gt;&lt;img src=&quot;/images/docker-dockerfile/docker-node-logo.jpg&quot; alt=&quot;docker-node-logo&quot; /&gt;&lt;/p&gt;
+
+&lt;h4 id=&quot;1使用express创建一个示例项目&quot;&gt;1、使用Express创建一个示例项目&lt;/h4&gt;
+
+&lt;h5 id=&quot;1-安装express应用生成器工具&quot;&gt;(1) 安装express应用生成器工具&lt;/h5&gt;
+
+&lt;div class=&quot;highlighter-rouge&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;npm install express-generator -g
+&lt;/code&gt;&lt;/pre&gt;
+&lt;/div&gt;
+
+&lt;h5 id=&quot;2-创建示例项目&quot;&gt;(2) 创建示例项目&lt;/h5&gt;
+
+&lt;div class=&quot;highlighter-rouge&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;express myapp
+&lt;/code&gt;&lt;/pre&gt;
+&lt;/div&gt;
+
+&lt;h4 id=&quot;2创建dockerignore文件&quot;&gt;2、创建&lt;code class=&quot;highlighter-rouge&quot;&gt;.dockerignore&lt;/code&gt;文件&lt;/h4&gt;
+
+&lt;p&gt;在myapp文件夹下面，新建一个&lt;code class=&quot;highlighter-rouge&quot;&gt;.dockerignore&lt;/code&gt;的文件，相当于&lt;code class=&quot;highlighter-rouge&quot;&gt;.gitignore&lt;/code&gt;，可以将一些不需要的文件进行忽略。示例代码如下：&lt;/p&gt;
+
+&lt;div class=&quot;highlighter-rouge&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;node_modules/  
+.git
+.gitignore
+.idea
+.DS_Store
+*.swp
+*.log
+&lt;/code&gt;&lt;/pre&gt;
+&lt;/div&gt;
+
+&lt;h4 id=&quot;3创建dockerfile文件&quot;&gt;3、创建Dockerfile文件&lt;/h4&gt;
+
+&lt;p&gt;在myapp文件夹下面，新建&lt;code class=&quot;highlighter-rouge&quot;&gt;Dockerfile&lt;/code&gt;文件，添加如下代码：&lt;/p&gt;
+
+&lt;div class=&quot;highlighter-rouge&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;FROM daocloud.io/node:5
+MAINTAINER hhtczengjing@gmail.com
+ENV PORT 3000
+COPY . /app
+WORKDIR /app
+RUN npm install --registry=https://registry.npm.taobao.org
+EXPOSE 3000
+CMD [&quot;npm&quot;, &quot;start&quot;]
+&lt;/code&gt;&lt;/pre&gt;
+&lt;/div&gt;
+
+&lt;h4 id=&quot;4构建镜像&quot;&gt;4、构建镜像&lt;/h4&gt;
+
+&lt;div class=&quot;highlighter-rouge&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;docker build -t myapp:1.0.0 .
+&lt;/code&gt;&lt;/pre&gt;
+&lt;/div&gt;
+
+&lt;p&gt;&lt;img src=&quot;/images/docker-dockerfile/docker-build.png&quot; alt=&quot;&quot; /&gt;&lt;/p&gt;
+
+&lt;p&gt;在终端执行这行命令之后，使用&lt;code class=&quot;highlighter-rouge&quot;&gt;docker images&lt;/code&gt;可以查看到当前所有的镜像：&lt;/p&gt;
+
+&lt;p&gt;&lt;img src=&quot;/images/docker-dockerfile/docker-images.png&quot; alt=&quot;&quot; /&gt;&lt;/p&gt;
+
+&lt;h4 id=&quot;5创建容器&quot;&gt;5、创建容器&lt;/h4&gt;
+
+&lt;div class=&quot;highlighter-rouge&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;docker run -d -p 3000:3000 myapp:1.0.0
+&lt;/code&gt;&lt;/pre&gt;
+&lt;/div&gt;
+
+&lt;p&gt;浏览器访问：http://localhost:3000， 如果出现下面的界面表示成功：&lt;/p&gt;
+
+&lt;p&gt;&lt;img src=&quot;/images/docker-dockerfile/hello-express.png&quot; alt=&quot;&quot; /&gt;&lt;/p&gt;
+
+&lt;h3 id=&quot;参考资料&quot;&gt;参考资料&lt;/h3&gt;
+
+&lt;p&gt;1、&lt;a href=&quot;https://docs.docker.com/engine/reference/builder/&quot;&gt;《Dockerfie 官方文档》&lt;/a&gt;&lt;/p&gt;
+
+&lt;p&gt;2、&lt;a href=&quot;https://docs.docker.com/engine/userguide/eng-image/dockerfile_best-practices/&quot;&gt;《Dockerfile 最佳实践文档》&lt;/a&gt;&lt;/p&gt;
+
+&lt;p&gt;3、&lt;a href=&quot;https://onbing.com/first-blog/&quot;&gt;《入门实战：使用Docker构建一个nodejs服务》&lt;/a&gt;&lt;/p&gt;
+
+&lt;p&gt;4、&lt;a href=&quot;http://blog.shiqichan.com/Dockerizing-a-Node-js-Web-Application/&quot;&gt;《在Docker中运行Node.js的Web应用》&lt;/a&gt;&lt;/p&gt;
+
+&lt;p&gt;5、&lt;a href=&quot;https://www.gitbook.com/book/yeasy/docker_practice/details&quot;&gt;《Docker — 从入门到实践》&lt;/a&gt;&lt;/p&gt;
+</description>
+        <pubDate>Tue, 01 Aug 2017 08:08:00 +0800</pubDate>
+        <link>http://blog.devzeng.com/blog/build-docker-image-with-dockerfile.html</link>
+        <guid isPermaLink="true">http://blog.devzeng.com/blog/build-docker-image-with-dockerfile.html</guid>
+        
+        <category>Note</category>
+        
+        
+      </item>
+    
+      <item>
+        <title>Maven私有库Nexus的安装和使用</title>
+        <description>&lt;p&gt;在进行Java开发的时候，通常会使用&lt;a href=&quot;http://maven.apache.org/&quot;&gt;Maven&lt;/a&gt;进行第三方库的管理，类似于iOS中的Cocoapods。我们在使用Cocoapods的时候都感受过更新索引库Specs的痛苦，使用Maven的时候依赖库也是从中央库(Central Repository)下载，速度可想而知会很慢。另外如果我们内部开发了一些基础的工具库，又不太方便托管到Central Repository的时候怎么办呢？&lt;/p&gt;
+
+&lt;p&gt;&lt;img src=&quot;http://www.sonatype.org/nexus/content/uploads/2014/09/thenexus-header-final2.jpg&quot; alt=&quot;thenexus-header-final2.jpg&quot; /&gt;&lt;/p&gt;
+
+&lt;p&gt;参考Cocoapods我们可以搭建内部的私有库来解决这些问题。&lt;a href=&quot;http://www.sonatype.org/nexus/&quot;&gt;Nexus&lt;/a&gt; 是Maven仓库管理器，如果你使用Maven，你可以从Maven中央仓库 下载所需要的构件（artifact），但这通常不是一个好的做法，通常会在本地架设一个Maven仓库服务器，在代理远程仓库的同时维护本地仓库，以节省带宽和时间，Nexus就可以满足这样的需要。这里记录下使用Nexus来搭建Maven的私有库的过程，本文基于&lt;code class=&quot;highlighter-rouge&quot;&gt;CentOS 6.5&lt;/code&gt;。&lt;/p&gt;
+
+&lt;h3 id=&quot;手动安装nexus-20&quot;&gt;手动安装Nexus 2.0&lt;/h3&gt;
+
+&lt;h4 id=&quot;1下载nexus&quot;&gt;1、下载nexus&lt;/h4&gt;
+
+&lt;p&gt;到官网下载最新版本的nexus，下载地址&lt;code class=&quot;highlighter-rouge&quot;&gt;http://www.sonatype.org/nexus/archived/&lt;/code&gt;，本文使用的版本是&lt;code class=&quot;highlighter-rouge&quot;&gt;Nexus 2.12.0-01&lt;/code&gt;&lt;/p&gt;
+
+&lt;div class=&quot;highlighter-rouge&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;wget http://download.sonatype.com/nexus/oss/nexus-2.12.0-01-bundle.tar.gz
+&lt;/code&gt;&lt;/pre&gt;
+&lt;/div&gt;
+
+&lt;h4 id=&quot;2创建一个nexus文件夹将所有的东西放在下面&quot;&gt;2、创建一个nexus文件夹将所有的东西放在下面&lt;/h4&gt;
+
+&lt;div class=&quot;highlighter-rouge&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;mkdir -p /home/nexus
+&lt;/code&gt;&lt;/pre&gt;
+&lt;/div&gt;
+
+&lt;h4 id=&quot;3解压&quot;&gt;3、解压&lt;/h4&gt;
+
+&lt;div class=&quot;highlighter-rouge&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;tar zxvf nexus-2.12.0-01-bundle.tar.gz
+&lt;/code&gt;&lt;/pre&gt;
+&lt;/div&gt;
+
+&lt;p&gt;将解压后的文件拷贝到刚才创建的nexus目录下面&lt;/p&gt;
+
+&lt;h4 id=&quot;4配置防火墙&quot;&gt;4、配置防火墙&lt;/h4&gt;
+
+&lt;p&gt;nexus的默认端口是&lt;code class=&quot;highlighter-rouge&quot;&gt;8081&lt;/code&gt;, 如果启动后无法正常访问需要配置下防火墙策略：&lt;/p&gt;
+
+&lt;div class=&quot;highlighter-rouge&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;iptables -I INPUT -p tcp --dport 8081 -j ACCEPT
+/etc/init.d/iptables save
+service iptables restart
+&lt;/code&gt;&lt;/pre&gt;
+&lt;/div&gt;
+
+&lt;h4 id=&quot;5启动&quot;&gt;5、启动&lt;/h4&gt;
+
+&lt;div class=&quot;highlighter-rouge&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;cd /home/nexus/nexus-2.12.0-01/bin
+./nexus start
+&lt;/code&gt;&lt;/pre&gt;
+&lt;/div&gt;
+
+&lt;p&gt;启动成功后访问地址：&lt;code class=&quot;highlighter-rouge&quot;&gt;http://localhost:10081/nexux/&lt;/code&gt;。&lt;/p&gt;
+
+&lt;h3 id=&quot;nexus配置说明&quot;&gt;nexus配置说明&lt;/h3&gt;
+
+&lt;h4 id=&quot;1repository类型&quot;&gt;1.Repository类型&lt;/h4&gt;
+
+&lt;p&gt;关于Repository的类型有如下几种：&lt;/p&gt;
+
+&lt;ul&gt;
+  &lt;li&gt;group: 仓库组，用来合并多个hosted/proxy仓库，通常我们配置maven依赖仓库组&lt;/li&gt;
+  &lt;li&gt;hosted：本地仓库，通常我们会部署自己的构件到这一类型的仓库。&lt;/li&gt;
+  &lt;li&gt;proxy：代理仓库，它们被用来代理远程的公共仓库，如maven中央仓库。&lt;/li&gt;
+  &lt;li&gt;virtual: 虚拟组，暂未使用&lt;/li&gt;
+&lt;/ul&gt;
+
+&lt;h4 id=&quot;2默认repository&quot;&gt;2.默认Repository&lt;/h4&gt;
+
+&lt;p&gt;nexus会默认创建如下几种Repository：&lt;/p&gt;
+
+&lt;ul&gt;
+  &lt;li&gt;1、&lt;code class=&quot;highlighter-rouge&quot;&gt;Public Repositories&lt;/code&gt;, 这是一个Repository Group，该Repository  Group包含了多个Repository，其中包含了Releases、Snapshots、ThirdParty和Central。&lt;/li&gt;
+  &lt;li&gt;2、&lt;code class=&quot;highlighter-rouge&quot;&gt;3rd party&lt;/code&gt;，该Repository即是存放你公司所购买的第三方软件库的地方，它是一个由Nexus自己维护的一个Repository。&lt;/li&gt;
+  &lt;li&gt;3、&lt;code class=&quot;highlighter-rouge&quot;&gt;Apache Snapshots&lt;/code&gt;，这是一个代理Repository，即最终的依赖还是得在Apache官网上去下载，然后缓存在Nexus中。&lt;/li&gt;
+  &lt;li&gt;4、&lt;code class=&quot;highlighter-rouge&quot;&gt;Central&lt;/code&gt;，这就是代理Maven Central Repository的Repository。&lt;/li&gt;
+  &lt;li&gt;5、&lt;code class=&quot;highlighter-rouge&quot;&gt;Releases&lt;/code&gt;，你自己的项目要发布时，就应该发布在这个Repository，他也是Nexus自己维护的Repository，而不是代理。&lt;/li&gt;
+  &lt;li&gt;6、&lt;code class=&quot;highlighter-rouge&quot;&gt;Snapshots&lt;/code&gt;，你自己项目Snapshot的Repository。&lt;/li&gt;
+&lt;/ul&gt;
+
+&lt;h3 id=&quot;使用docker安装nexus-30&quot;&gt;使用Docker安装Nexus 3.0&lt;/h3&gt;
+
+&lt;h4 id=&quot;1安装docker&quot;&gt;1、安装Docker&lt;/h4&gt;
+
+&lt;p&gt;参考&lt;a href=&quot;http://blog.devzeng.com/blog/install-docker-in-centos.html&quot;&gt;《CentOS安装Docker》&lt;/a&gt;&lt;/p&gt;
+
+&lt;h4 id=&quot;2安装nexus&quot;&gt;2、安装Nexus&lt;/h4&gt;
+
+&lt;h5 id=&quot;1下载镜像&quot;&gt;（1）下载镜像&lt;/h5&gt;
+
+&lt;div class=&quot;highlighter-rouge&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;docker pull sonatype/nexus3
+&lt;/code&gt;&lt;/pre&gt;
+&lt;/div&gt;
+
+&lt;h5 id=&quot;2创建nexus的数据存储目录&quot;&gt;（2）创建nexus的数据存储目录&lt;/h5&gt;
+
+&lt;p&gt;创建存储文件目录，并修改目录拥有者，容器里面运行的uid是&lt;code class=&quot;highlighter-rouge&quot;&gt;200&lt;/code&gt;&lt;/p&gt;
+
+&lt;div class=&quot;highlighter-rouge&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;mkdir -p /opt/nexus-data
+chown -R 200 /opt/nexus-data
+&lt;/code&gt;&lt;/pre&gt;
+&lt;/div&gt;
+
+&lt;h5 id=&quot;3创建并启动服务&quot;&gt;（3）创建并启动服务&lt;/h5&gt;
+
+&lt;div class=&quot;highlighter-rouge&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;docker run -d -p 8081:8081 --name nexus3 -v /opt/nexus-data:/nexus-data sonatype/nexus3
+&lt;/code&gt;&lt;/pre&gt;
+&lt;/div&gt;
+
+&lt;p&gt;参数说明：&lt;/p&gt;
+
+&lt;ul&gt;
+  &lt;li&gt;&lt;code class=&quot;highlighter-rouge&quot;&gt;-d&lt;/code&gt;：指的是后台运行&lt;/li&gt;
+  &lt;li&gt;&lt;code class=&quot;highlighter-rouge&quot;&gt;-p 8081:8081&lt;/code&gt;：指把容器&lt;code class=&quot;highlighter-rouge&quot;&gt;8081&lt;/code&gt;端口映射到主机&lt;code class=&quot;highlighter-rouge&quot;&gt;8081&lt;/code&gt;端口，格式为&lt;code class=&quot;highlighter-rouge&quot;&gt;“主机端口:容器端口”&lt;/code&gt;&lt;/li&gt;
+  &lt;li&gt;&lt;code class=&quot;highlighter-rouge&quot;&gt;-v /opt/nexus-data:/nexus-data&lt;/code&gt;：把容器里的&lt;code class=&quot;highlighter-rouge&quot;&gt;/nexus-data&lt;/code&gt;目录，映射到主机的&lt;code class=&quot;highlighter-rouge&quot;&gt;/opt/nexus-data&lt;/code&gt;目录&lt;/li&gt;
+  &lt;li&gt;&lt;code class=&quot;highlighter-rouge&quot;&gt;–-name nexus3&lt;/code&gt;：容器的名称&lt;/li&gt;
+  &lt;li&gt;&lt;code class=&quot;highlighter-rouge&quot;&gt;sonatype/nexus3&lt;/code&gt;：需要下载的镜像&lt;/li&gt;
+&lt;/ul&gt;
+
+&lt;h3 id=&quot;配置maven&quot;&gt;配置Maven&lt;/h3&gt;
+
+&lt;h4 id=&quot;1mac安装maven&quot;&gt;1、Mac安装Maven&lt;/h4&gt;
+
+&lt;div class=&quot;highlighter-rouge&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;brew install maven
+&lt;/code&gt;&lt;/pre&gt;
+&lt;/div&gt;
+
+&lt;h4 id=&quot;2修改配置文件&quot;&gt;2、修改配置文件&lt;/h4&gt;
+
+&lt;p&gt;安装完成后Maven的配置文件在：&lt;code class=&quot;highlighter-rouge&quot;&gt;/usr/local/Cellar/maven/{版本号}/libexec/conf&lt;/code&gt;这个目录下面。找到&lt;code class=&quot;highlighter-rouge&quot;&gt;settings.xml&lt;/code&gt;文件在&lt;code class=&quot;highlighter-rouge&quot;&gt;mirrors&lt;/code&gt;节点下面新增如下配置:&lt;/p&gt;
+
+&lt;div class=&quot;highlighter-rouge&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;&amp;lt;mirror&amp;gt;
+	&amp;lt;id&amp;gt;nexus&amp;lt;/id&amp;gt;
+	&amp;lt;mirrorOf&amp;gt;central&amp;lt;/mirrorOf&amp;gt;
+	&amp;lt;name&amp;gt;central repository&amp;lt;/name&amp;gt;
+	&amp;lt;url&amp;gt;http://192.168.3.18:8081/repository/maven-public/&amp;lt;/url&amp;gt;
+&amp;lt;/mirror&amp;gt;
+&lt;/code&gt;&lt;/pre&gt;
+&lt;/div&gt;
+&lt;p&gt;表示新增了一个镜像配置，第三方库从这个镜像地址下载。&lt;/p&gt;
+
+&lt;h4 id=&quot;3编写maven示例程序&quot;&gt;3、编写Maven示例程序&lt;/h4&gt;
+
+&lt;p&gt;使用Maven的模板快速创建一个webapp的项目：&lt;/p&gt;
+
+&lt;div class=&quot;highlighter-rouge&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;mvn archetype:generate -DgroupId=com.devzeng.demo -DartifactId=demo-app -DpackageName=com.devzeng.demo -Dversion=1.0
+&lt;/code&gt;&lt;/pre&gt;
+&lt;/div&gt;
+
+&lt;p&gt;如果在控制台看到有jar包从&lt;code class=&quot;highlighter-rouge&quot;&gt;http://192.168.3.18:8081&lt;/code&gt;这个地址下载表示配置成功。&lt;/p&gt;
+
+&lt;h3 id=&quot;参考资料&quot;&gt;参考资料&lt;/h3&gt;
+
+&lt;p&gt;1、&lt;a href=&quot;http://blog.csdn.net/liujiahan629629/article/details/39272321&quot;&gt;《Nexus私服使Maven更加强大》&lt;/a&gt;&lt;/p&gt;
+
+&lt;p&gt;2、&lt;a href=&quot;http://www.chengyong.net/linux-study/centos-install-sonaType-nexus.html&quot;&gt;《CentOS上搭建私有maven仓库，提供jcenter镜像》&lt;/a&gt;&lt;/p&gt;
+
+&lt;p&gt;3、&lt;a href=&quot;http://blog.csdn.net/typa01_kk/article/details/49228873&quot;&gt;《CentOS安装nexus(Maven仓库管理器)》&lt;/a&gt;&lt;/p&gt;
+
+&lt;p&gt;4、&lt;a href=&quot;http://www.cnblogs.com/dingyingsi/p/3776557.html&quot;&gt;《Centos 基础开发环境搭建之Maven私服nexus》&lt;/a&gt;&lt;/p&gt;
+
+&lt;p&gt;5、&lt;a href=&quot;http://beyondvincent.com/2016/09/23/2016-09-23-use-nexus-with-docker/&quot;&gt;《在 Docker 搭建 Maven 私有库》&lt;/a&gt;&lt;/p&gt;
+
+&lt;p&gt;6、&lt;a href=&quot;https://zhuanlan.zhihu.com/p/27660819&quot;&gt;《使用sonatype nexus搭建jcenter mirror》&lt;/a&gt;&lt;/p&gt;
+
+&lt;p&gt;7、&lt;a href=&quot;https://wendyeq.me/2016/11/20/nexus-oss-3-in-docker/&quot;&gt;《Docker 搭建Nexus OSS3私服》&lt;/a&gt;&lt;/p&gt;
+
+&lt;p&gt;8、&lt;a href=&quot;http://juvenshun.iteye.com/blog/349534&quot;&gt;《Nexus入门指南（图文）》&lt;/a&gt;&lt;/p&gt;
+</description>
+        <pubDate>Sat, 22 Jul 2017 00:08:00 +0800</pubDate>
+        <link>http://blog.devzeng.com/blog/centos-nexus-install.html</link>
+        <guid isPermaLink="true">http://blog.devzeng.com/blog/centos-nexus-install.html</guid>
+        
+        <category>Note</category>
+        
+        
+      </item>
+    
+      <item>
+        <title>CentOS安装Docker</title>
+        <description>&lt;p&gt;&lt;img src=&quot;/images/install-docker-in-centos/docker-logo-compressed.png&quot; alt=&quot;docker-logo-compressed.png&quot; /&gt;&lt;/p&gt;
+
+&lt;p&gt;之前写过一篇关于在Mac上面使用并安装Docker的文章&lt;a href=&quot;http://blog.devzeng.com/blog/using-docker-on-macos.html&quot;&gt;《Mac上Docker的安装和使用初探》&lt;/a&gt;，介绍了在Macos上面安装Docker的步骤。近期由于需要在一台&lt;code class=&quot;highlighter-rouge&quot;&gt;CentOS 6.5&lt;/code&gt;的服务器上面部署一些服务，考虑到使用Docker来做这些事情，记录一下处理的步骤。&lt;/p&gt;
+
+&lt;h3 id=&quot;检查内核版本&quot;&gt;检查内核版本&lt;/h3&gt;
+
+&lt;div class=&quot;highlighter-rouge&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;uname -r
+&lt;/code&gt;&lt;/pre&gt;
+&lt;/div&gt;
+
+&lt;p&gt;如果输出的信息为&lt;code class=&quot;highlighter-rouge&quot;&gt;2.6.32-431.el6.centos.plus.x86_64&lt;/code&gt;，表示当前的内核版本是&lt;code class=&quot;highlighter-rouge&quot;&gt;2.6.32&lt;/code&gt;。docker需要的内核版本是&lt;code class=&quot;highlighter-rouge&quot;&gt;3.10&lt;/code&gt;，所以需要升级Linux的内核，升级的步骤如下：&lt;/p&gt;
+
+&lt;h5 id=&quot;1-导入public-key&quot;&gt;(1) 导入public key&lt;/h5&gt;
+
+&lt;div class=&quot;highlighter-rouge&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;rpm --import https://www.elrepo.org/RPM-GPG-KEY-elrepo.org
+&lt;/code&gt;&lt;/pre&gt;
+&lt;/div&gt;
+
+&lt;h5 id=&quot;2-安装elrepo&quot;&gt;(2) 安装ELRepo&lt;/h5&gt;
+
+&lt;div class=&quot;highlighter-rouge&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;rpm -Uvh http://www.elrepo.org/elrepo-release-6-6.el6.elrepo.noarch.rpm
+&lt;/code&gt;&lt;/pre&gt;
+&lt;/div&gt;
+
+&lt;h5 id=&quot;3-安装内核&quot;&gt;(3) 安装内核&lt;/h5&gt;
+
+&lt;div class=&quot;highlighter-rouge&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;yum --enablerepo=elrepo-kernel install kernel-lt -y
+&lt;/code&gt;&lt;/pre&gt;
+&lt;/div&gt;
+
+&lt;p&gt;目前在ELRepo源中存在如下几个版本的内核，参考地址&lt;code class=&quot;highlighter-rouge&quot;&gt;http://elrepo.org/linux/kernel/el6/x86_64/RPMS/&lt;/code&gt;，long-term表示长期稳定版本&lt;/p&gt;
+
+&lt;ul&gt;
+  &lt;li&gt;
+    &lt;p&gt;1) ml(main-line): 4.6&lt;/p&gt;
+  &lt;/li&gt;
+  &lt;li&gt;
+    &lt;p&gt;2) lt(long-term): 3.10&lt;/p&gt;
+  &lt;/li&gt;
+&lt;/ul&gt;
+
+&lt;h5 id=&quot;4-修改grub引导顺序&quot;&gt;(4) 修改Grub引导顺序&lt;/h5&gt;
+
+&lt;div class=&quot;highlighter-rouge&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;vim /etc/grub.conf
+修改default=0
+&lt;/code&gt;&lt;/pre&gt;
+&lt;/div&gt;
+
+&lt;h5 id=&quot;5-重启&quot;&gt;(5) 重启&lt;/h5&gt;
+
+&lt;div class=&quot;highlighter-rouge&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;shutdown -r now
+&lt;/code&gt;&lt;/pre&gt;
+&lt;/div&gt;
+
+&lt;h3 id=&quot;2安装docker&quot;&gt;2、安装Docker&lt;/h3&gt;
+
+&lt;h4 id=&quot;1-更新yum包&quot;&gt;(1) 更新yum包&lt;/h4&gt;
+
+&lt;div class=&quot;highlighter-rouge&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;sudo yum update
+&lt;/code&gt;&lt;/pre&gt;
+&lt;/div&gt;
+
+&lt;h4 id=&quot;2-下载rmp包&quot;&gt;(2) 下载rmp包&lt;/h4&gt;
+
+&lt;div class=&quot;highlighter-rouge&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;curl -O -sSL https://get.docker.com/rpm/1.7.0/centos-6/RPMS/x86_64/docker-engine-1.7.0-1.el6.x86_64.rpm
+&lt;/code&gt;&lt;/pre&gt;
+&lt;/div&gt;
+
+&lt;h4 id=&quot;3-安装rmp包&quot;&gt;(3) 安装rmp包&lt;/h4&gt;
+
+&lt;div class=&quot;highlighter-rouge&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;sudo yum localinstall --nogpgcheck docker-engine-1.7.0-1.el6.x86_64.rpm
+&lt;/code&gt;&lt;/pre&gt;
+&lt;/div&gt;
+
+&lt;h4 id=&quot;4-启动docker服务&quot;&gt;(4) 启动docker服务&lt;/h4&gt;
+
+&lt;div class=&quot;highlighter-rouge&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;sudo service docker start
+&lt;/code&gt;&lt;/pre&gt;
+&lt;/div&gt;
+
+&lt;h4 id=&quot;5-验证docker&quot;&gt;(5) 验证Docker&lt;/h4&gt;
+
+&lt;div class=&quot;highlighter-rouge&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;sudo docker run hello-world
+&lt;/code&gt;&lt;/pre&gt;
+&lt;/div&gt;
+
+&lt;p&gt;如果安装启动成功，控制台输出的结果如下所示：&lt;/p&gt;
+
+&lt;p&gt;&lt;img src=&quot;/images/install-docker-in-centos/docker-hello-world.png&quot; alt=&quot;docker-hello-world.png&quot; /&gt;&lt;/p&gt;
+
+&lt;h4 id=&quot;6-设置开机启动&quot;&gt;(6) 设置开机启动&lt;/h4&gt;
+
+&lt;div class=&quot;highlighter-rouge&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;sudo chkconfig docker on
+&lt;/code&gt;&lt;/pre&gt;
+&lt;/div&gt;
+
+&lt;p&gt;如何卸载&lt;/p&gt;
+
+&lt;div class=&quot;highlighter-rouge&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;yum list installed | grep docker
+sudo yum -y remove docker-engine.x86_64 
+&lt;/code&gt;&lt;/pre&gt;
+&lt;/div&gt;
+
+&lt;h3 id=&quot;参考资料&quot;&gt;参考资料&lt;/h3&gt;
+
+&lt;p&gt;1、&lt;a href=&quot;http://www.centoscn.com/image-text/config/2016/0707/7591.html&quot;&gt;《CentOS通过YUM升级centOS内核》&lt;/a&gt;&lt;/p&gt;
+
+&lt;p&gt;2、&lt;a href=&quot;https://docs.docker.com/v1.7/docker/installation/centos/&quot;&gt;《Docker 1.7 Centos安装文档》&lt;/a&gt;&lt;/p&gt;
+
+&lt;p&gt;3、&lt;a href=&quot;http://elrepo.org/tiki/tiki-index.php&quot;&gt;《ELRepo.org》&lt;/a&gt;&lt;/p&gt;
+</description>
+        <pubDate>Fri, 21 Jul 2017 11:08:00 +0800</pubDate>
+        <link>http://blog.devzeng.com/blog/install-docker-in-centos.html</link>
+        <guid isPermaLink="true">http://blog.devzeng.com/blog/install-docker-in-centos.html</guid>
+        
+        <category>Note</category>
+        
+        
+      </item>
+    
+      <item>
+        <title>iOS中使用Tesseract提取身份证号码</title>
+        <description>&lt;p&gt;&lt;code class=&quot;highlighter-rouge&quot;&gt;OCR&lt;/code&gt; （&lt;code class=&quot;highlighter-rouge&quot;&gt;Optical Character Recognition&lt;/code&gt;，光学字符识别）是指电子设备（例如扫描仪或数码相机）检查纸上打印的字符，通过检测暗、亮的模式确定其形状，然后用字符识别方法将形状翻译成计算机文字的过程。通俗来说就是通过对图像进行处理提取裁剪出来有字符的区域然后对字符进行识别翻译成文字。&lt;/p&gt;
+
+&lt;p&gt;&lt;img src=&quot;/images/ios-tesseract-ocr/how-ocr.png&quot; alt=&quot;how-ocr.png&quot; /&gt;&lt;/p&gt;
+
+&lt;p&gt;上面的图片是来自于&lt;a href=&quot;https://cloud.baidu.com/product/ocr/idcard&quot;&gt;Baidu&lt;/a&gt;的在线OCR识别。本文是基于&lt;a href=&quot;https://github.com/tesseract-ocr&quot;&gt;tesseract-ocr&lt;/a&gt;（Tesseract是一个开源的OCR引擎，可以识别多种格式的图像文件并将其转换成文本，目前已支持包括中文在内的60多种语言。）和 &lt;a href=&quot;http://www.opencv.org/releases.html&quot;&gt;OpenCV&lt;/a&gt;（OpenCV是一个开源的跨平台计算机视觉库）进行开发的。&lt;/p&gt;
+
+&lt;h3 id=&quot;环境准备&quot;&gt;环境准备&lt;/h3&gt;
+
+&lt;h4 id=&quot;1配置cocoapods-podfile&quot;&gt;1、配置Cocoapods Podfile&lt;/h4&gt;
+
+&lt;p&gt;推荐使用Cocoapods的方式进行集成，在Podfile中添加如下两个库：&lt;/p&gt;
+
+&lt;div class=&quot;highlighter-rouge&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;pod 'OpenCV', '~&amp;gt; 3.2.0'
+pod 'TesseractOCRiOS', '~&amp;gt; 4.0.0'
+&lt;/code&gt;&lt;/pre&gt;
+&lt;/div&gt;
+
+&lt;p&gt;如果下载OpenCV的库失败，可以手动的方式进行集成。到&lt;a href=&quot;http://www.opencv.org/releases.html&quot;&gt;官网&lt;/a&gt;下载最新版本的&lt;code class=&quot;highlighter-rouge&quot;&gt;OpenCV iOS Framework&lt;/code&gt;(当前最新的版本是3.2.0）直接拖到项目里面。&lt;/p&gt;
+
+&lt;p&gt;&lt;img src=&quot;/images/ios-tesseract-ocr/opencv-download.png&quot; alt=&quot;opencv-download.png&quot; /&gt;&lt;/p&gt;
+
+&lt;h4 id=&quot;2下载tesseract的训练库&quot;&gt;2、下载tesseract的训练库&lt;/h4&gt;
+
+&lt;div class=&quot;highlighter-rouge&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;git clone https://github.com/tesseract-ocr/tessdata.git
+&lt;/code&gt;&lt;/pre&gt;
+&lt;/div&gt;
+
+&lt;p&gt;下载各个语言包训练库完成之后，需要切换到&lt;code class=&quot;highlighter-rouge&quot;&gt;3.04.00&lt;/code&gt;版本。&lt;/p&gt;
+
+&lt;div class=&quot;highlighter-rouge&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;git checkout 3.04.00
+&lt;/code&gt;&lt;/pre&gt;
+&lt;/div&gt;
+
+&lt;p&gt;由于本次只需要识别身份证号码使用英语的语言包训练库就可以了，删除其他的只保留&lt;code class=&quot;highlighter-rouge&quot;&gt;eng.traineddata&lt;/code&gt;既可。然后以&lt;code class=&quot;highlighter-rouge&quot;&gt;Create folder reference&lt;/code&gt;的方式拖到项目中（蓝色group），如下图所示。&lt;/p&gt;
+
+&lt;p&gt;&lt;img src=&quot;/images/ios-tesseract-ocr/tessdata-group.png&quot; alt=&quot;tessdata-group.png&quot; /&gt;&lt;/p&gt;
+
+&lt;h3 id=&quot;操作步骤&quot;&gt;操作步骤&lt;/h3&gt;
+
+&lt;h4 id=&quot;1图像处理&quot;&gt;1、图像处理&lt;/h4&gt;
+
+&lt;h5 id=&quot;1-转化为灰度图像&quot;&gt;(1) 转化为灰度图像&lt;/h5&gt;
+
+&lt;div class=&quot;highlighter-rouge&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;cv::cvtColor(src, dest, cv::COLOR_BGR2GRAY);
+&lt;/code&gt;&lt;/pre&gt;
+&lt;/div&gt;
+
+&lt;h5 id=&quot;2-二值化&quot;&gt;(2) 二值化&lt;/h5&gt;
+
+&lt;div class=&quot;highlighter-rouge&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;cv::threshold(src, dest, 100, 255, CV_THRESH_BINARY);
+&lt;/code&gt;&lt;/pre&gt;
+&lt;/div&gt;
+
+&lt;h5 id=&quot;3-图像腐蚀填充&quot;&gt;(3) 图像腐蚀填充&lt;/h5&gt;
+
+&lt;p&gt;将规范化的2值图像进行，因为之前进行了规范化，因此这里膨胀的幅度可以设为定值；（膨胀就是将黑点扩大范围，因此有字迹的地方将会连成一片，形成很多的contours）&lt;/p&gt;
+
+&lt;div class=&quot;highlighter-rouge&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;cv::Mat erodeElement = getStructuringElement(cv::MORPH_RECT, cv::Size(26, 26));
+cv::erode(src, dest, erodeElement);
+&lt;/code&gt;&lt;/pre&gt;
+&lt;/div&gt;
+
+&lt;h5 id=&quot;4-轮廓检测&quot;&gt;(4) 轮廓检测&lt;/h5&gt;
+
+&lt;p&gt;图片经过腐蚀操作后相邻点会连接在一起形成一个大的区域，这个时候通过轮廊检测就可以把每个大的区域找出来，这样就可以定位到身份证上面号码的区域。使用&lt;code class=&quot;highlighter-rouge&quot;&gt;findContours&lt;/code&gt;方法可以找出其中所有的轮廓(contours),将返回一个列表，得到每个人contour的位置。函数原型如下：&lt;/p&gt;
+
+&lt;div class=&quot;highlighter-rouge&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;CV_EXPORTS void findContours(InputOutputArray image, OutputArrayOfArrays contours, int mode, int method, Point offset = Point());
+&lt;/code&gt;&lt;/pre&gt;
+&lt;/div&gt;
+
+&lt;p&gt;参数说明：&lt;/p&gt;
+
+&lt;ul&gt;
+  &lt;li&gt;image ：要寻找轮廓的图片，注意这里的轮廓会直接改变在src上(需要备份)；&lt;/li&gt;
+  &lt;li&gt;contours：输出检测到的轮廓&lt;/li&gt;
+  &lt;li&gt;mode：轮廓检索模式。CV_RETR_TREE：检索所有的轮廓&lt;/li&gt;
+  &lt;li&gt;method: 轮廓近似方法。CV_CHAIN_APPROX_SIMPLE ：表示去掉冗余信息&lt;/li&gt;
+  &lt;li&gt;offset: 搜索的偏移&lt;/li&gt;
+&lt;/ul&gt;
+
+&lt;p&gt;示例代码如下：&lt;/p&gt;
+
+&lt;div class=&quot;highlighter-rouge&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;std::vector&amp;lt;std::vector&amp;lt;cv::Point&amp;gt;&amp;gt; contours;//定义一个容器来存储所有检测到的轮廊
+cv::findContours(src, contours, CV_RETR_TREE, CV_CHAIN_APPROX_SIMPLE, cvPoint(0, 0));
+&lt;/code&gt;&lt;/pre&gt;
+&lt;/div&gt;
+
+&lt;h5 id=&quot;5-身份证号码提取&quot;&gt;(5) 身份证号码提取&lt;/h5&gt;
+
+&lt;p&gt;由于身份证号码所在位置固定，拍照方式合适，则可以根据contour的位置和其本身size，找到包含身份证号码的contour。然后将这一片从之前的二值化处理后的图像里分割出来，单独处理。&lt;/p&gt;
+
+&lt;div class=&quot;highlighter-rouge&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;std::vector&amp;lt;cv::Rect&amp;gt; rects;
+cv::Rect numberRect = cv::Rect(0,0,0,0);
+std::vector&amp;lt;std::vector&amp;lt;cv::Point&amp;gt;&amp;gt;::const_iterator itContours = contours.begin();
+for ( ; itContours != contours.end(); ++itContours) {
+    cv::Rect rect = cv::boundingRect(*itContours);
+    rects.push_back(rect);
+    //算法原理: 宽度/高度 &amp;gt; 5
+    if (rect.width &amp;gt; numberRect.width &amp;amp;&amp;amp; rect.width &amp;gt; rect.height * 5) {
+            numberRect = rect;
+        }
+    }
+&lt;/code&gt;&lt;/pre&gt;
+&lt;/div&gt;
+
+&lt;h4 id=&quot;2信息提取&quot;&gt;2、信息提取&lt;/h4&gt;
+
+&lt;div class=&quot;highlighter-rouge&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;- (void)pd_recognizeImageWithTesseract:(UIImage *)image complete:(void (^)(BOOL status, NSString *result))complete {
+dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_BACKGROUND, 0), ^{
+        G8Tesseract *tesseract = [[G8Tesseract alloc] initWithLanguage:@&quot;eng&quot;];
+        tesseract.image = [image g8_blackAndWhite];
+        tesseract.charWhitelist = @&quot;0123456789&quot;;
+        BOOL status = [tesseract recognize];
+        dispatch_async(dispatch_get_main_queue(), ^{
+            complete(status, tesseract.recognizedText);
+        });
+    });
+}
+&lt;/code&gt;&lt;/pre&gt;
+&lt;/div&gt;
+
+&lt;h4 id=&quot;3说明&quot;&gt;3、说明：&lt;/h4&gt;
+
+&lt;ul&gt;
+  &lt;li&gt;（1）测试素材可以从&lt;code class=&quot;highlighter-rouge&quot;&gt;https://cloud.baidu.com/product/ocr/idcard&lt;/code&gt;获取&lt;/li&gt;
+  &lt;li&gt;（2）优化的方向有几个方面：
+    &lt;ul&gt;
+      &lt;li&gt;① 调整提取号码区域的算法（腐蚀与填充、号码区域提取）&lt;/li&gt;
+      &lt;li&gt;② 手动进行样本训练&lt;/li&gt;
+    &lt;/ul&gt;
+  &lt;/li&gt;
+&lt;/ul&gt;
+
+&lt;h3 id=&quot;参考资料&quot;&gt;参考资料&lt;/h3&gt;
+
+&lt;p&gt;1、&lt;a href=&quot;http://www.opencv.org/releases.html&quot;&gt;《OpenCV官网》&lt;/a&gt;&lt;/p&gt;
+
+&lt;p&gt;2、&lt;a href=&quot;http://www.jianshu.com/p/ac4c4536ca3e&quot;&gt;《iOS身份证号码识别》&lt;/a&gt;&lt;/p&gt;
+
+&lt;p&gt;3、&lt;a href=&quot;https://github.com/tesseract-ocr/tesseract/wiki/FAQ&quot;&gt;《tesseract在使用过程中的一些常见问题》&lt;/a&gt;&lt;/p&gt;
+
+&lt;p&gt;4、&lt;a href=&quot;http://fengdeng.github.io/2016/08/18/iOS实现身份证号码识别/&quot;&gt;《iOS实现身份证号码识别》&lt;/a&gt;&lt;/p&gt;
+
+&lt;p&gt;5、&lt;a href=&quot;http://www.jianshu.com/p/c544d62749ac&quot;&gt;《OpenCV学习开发笔记一(iOS9)》&lt;/a&gt;&lt;/p&gt;
+</description>
+        <pubDate>Sat, 15 Jul 2017 11:08:00 +0800</pubDate>
+        <link>http://blog.devzeng.com/blog/ios-ocr-with-tesseract.html</link>
+        <guid isPermaLink="true">http://blog.devzeng.com/blog/ios-ocr-with-tesseract.html</guid>
+        
+        <category>iOS</category>
+        
+        
+      </item>
+    
+      <item>
+        <title>Eclipse无法正常启动Tomcat项目解决办法</title>
+        <description>&lt;p&gt;&lt;img src=&quot;/images/eclipse-tomcat-lanuch-error/eclipse-logo.png&quot; alt=&quot;eclipse-logo.png&quot; /&gt;&lt;/p&gt;
+
+&lt;p&gt;以前一直使用 &lt;code class=&quot;highlighter-rouge&quot;&gt;MyEclipse&lt;/code&gt; 开发 JavaEE 项目，实在是太卡了，近期将之前的项目全部迁移到了 Eclipse 上面。一段时间内都好好的，这两天突然发现启动 Tomcat 不正常了，具体表现如下：&lt;/p&gt;
+
+&lt;p&gt;（1）Tomcat 在 Eclipse 里面能正常启动，但在浏览器中访问&lt;code class=&quot;highlighter-rouge&quot;&gt;http://localhost:8080/&lt;/code&gt;报404错误。也就是说 Tomcat 启动了但是里面部署的 web 项目没有启动。&lt;/p&gt;
+
+&lt;p&gt;（2）关闭 Eclipse 里面的 Tomcat，在 Tomcat 安装目录下双击&lt;code class=&quot;highlighter-rouge&quot;&gt;startup.bat&lt;/code&gt;手动启动 Tomcat 服务器。访问&lt;code class=&quot;highlighter-rouge&quot;&gt;http://localhost:8080/&lt;/code&gt;能正常打开 Tomcat 里面部署的项目。&lt;/p&gt;
+
+&lt;p&gt;通过网上一篇文章&lt;a href=&quot;http://blog.csdn.net/wqjsir/article/details/7169838/&quot;&gt;《eclipse启动tomcat无法访问》&lt;/a&gt;终于解决了问题，貌似之前在MyEclipse里面也遇到过这个问题，下面记录一下解决的办法：&lt;/p&gt;
+
+&lt;p&gt;（1）在 Eclipse 中的 Server 页面，双击 Tomcat 服务&lt;/p&gt;
+
+&lt;p&gt;&lt;img src=&quot;/images/eclipse-tomcat-lanuch-error/open-server.png&quot; alt=&quot;open-server.png&quot; /&gt;&lt;/p&gt;
+
+&lt;p&gt;会看到如下所示的配置页面：&lt;/p&gt;
+
+&lt;p&gt;&lt;img src=&quot;/images/eclipse-tomcat-lanuch-error/config-error.png&quot; alt=&quot;open-server.png&quot; /&gt;&lt;/p&gt;
+
+&lt;p&gt;可以看到当前&lt;code class=&quot;highlighter-rouge&quot;&gt;Server Locations&lt;/code&gt;选择的是 &lt;code class=&quot;highlighter-rouge&quot;&gt;Use workspace metadata(does not modify Tomcat installion)&lt;/code&gt;&lt;/p&gt;
+
+&lt;p&gt;（2）如果该tomcat中部署了项目的话，这红圈中的选项会灰掉不能修改，要修改必须得先把tomcat中的部署的服务都移除。如下图所示:&lt;/p&gt;
+
+&lt;p&gt;&lt;img src=&quot;/images/eclipse-tomcat-lanuch-error/add-remove.png&quot; alt=&quot;open-server.png&quot; /&gt;&lt;/p&gt;
+
+&lt;p&gt;选择 &lt;code class=&quot;highlighter-rouge&quot;&gt;Add and Remove&lt;/code&gt;，在弹出的对话框中移除已部署的项目。移除完确定后，将看到上面的选项面板部分可编辑了&lt;/p&gt;
+
+&lt;p&gt;（3）选择tomcat的安装目录来作为项目的发布目录&lt;/p&gt;
+
+&lt;p&gt;选择&lt;code class=&quot;highlighter-rouge&quot;&gt;Use tomcat installation(Task control of Tomcat installation)&lt;/code&gt; 即选择tomcat的安装目录来作为项目的发布目录。&lt;/p&gt;
+
+&lt;p&gt;（4） 修改部署文件夹的名称&lt;/p&gt;
+
+&lt;p&gt;然后,下来四行,看到&lt;code class=&quot;highlighter-rouge&quot;&gt;&quot;Deploy Path&quot;&lt;/code&gt;了没?它后面的值默认是”&lt;code class=&quot;highlighter-rouge&quot;&gt;wtpwebapps&lt;/code&gt;“,把它改成”webapps”,也就是tomcat中发布项目所在的文件夹名字。&lt;/p&gt;
+
+&lt;p&gt;修改后关掉该页面，保存配置。这样就将项目部署到了 &lt;code class=&quot;highlighter-rouge&quot;&gt;Tomcat&lt;/code&gt; 安装目录下的 &lt;code class=&quot;highlighter-rouge&quot;&gt;webapp&lt;/code&gt;
+重启 &lt;code class=&quot;highlighter-rouge&quot;&gt;Tomcat&lt;/code&gt; 服务器，访问&lt;code class=&quot;highlighter-rouge&quot;&gt;http://localhost:8080&lt;/code&gt;则能正常访问了，自己部署的项目也能正常访问了。&lt;/p&gt;
+
+&lt;h3 id=&quot;参考资料&quot;&gt;参考资料&lt;/h3&gt;
+
+&lt;p&gt;1、&lt;a href=&quot;http://blog.csdn.net/wqjsir/article/details/7169838/&quot;&gt;eclipse启动tomcat无法访问&lt;/a&gt;&lt;/p&gt;
+
+&lt;p&gt;2、&lt;a href=&quot;https://www.eclipse.org/&quot;&gt;Eclipse官网&lt;/a&gt;&lt;/p&gt;
+</description>
+        <pubDate>Wed, 07 Jun 2017 21:51:00 +0800</pubDate>
+        <link>http://blog.devzeng.com/blog/eclipse-tomcat-launch-error.html</link>
+        <guid isPermaLink="true">http://blog.devzeng.com/blog/eclipse-tomcat-launch-error.html</guid>
+        
+        <category>Java</category>
+        
+        
+      </item>
+    
+      <item>
+        <title>Jersey整合Swagger自动生成API文档</title>
+        <description>&lt;p&gt;之前写过一篇文章&lt;a href=&quot;http://blog.devzeng.com/blog/java-restful-with-jersey.html&quot;&gt;《使用Jersey开发REST服务》&lt;/a&gt;，里面简单介绍了使用Jersey来快速创建REST的API服务。&lt;/p&gt;
+
+&lt;p&gt;REST API都是要对外提供服务的，那么文档是必须的。经常要给其他人员提供文档，每次都是要不断的维护word/excel的文件，挺麻烦的。能不能做到自动生成呢？答案是可以的，swagger就是这样的一个组件帮助我们快速生成，让开发人员只需要关注功能的开发即可，后续的工作就交给Swagger就好了。&lt;/p&gt;
+
+&lt;p&gt;下面简单介绍下如何在Jersey的项目中集成Swagger。&lt;/p&gt;
+
+&lt;h3 id=&quot;1pomxml加入swagger的依赖&quot;&gt;1、pom.xml加入swagger的依赖&lt;/h3&gt;
+
+&lt;div class=&quot;highlighter-rouge&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;&amp;lt;dependency&amp;gt;
+    &amp;lt;groupId&amp;gt;io.swagger&amp;lt;/groupId&amp;gt;
+    &amp;lt;artifactId&amp;gt;swagger-jersey2-jaxrs&amp;lt;/artifactId&amp;gt; 
+    &amp;lt;version&amp;gt;1.5.0&amp;lt;/version&amp;gt;
+&amp;lt;/dependency&amp;gt;
+&lt;/code&gt;&lt;/pre&gt;
+&lt;/div&gt;
+
+&lt;h3 id=&quot;2修改webxml配置&quot;&gt;2、修改web.xml配置&lt;/h3&gt;
+
+&lt;h4 id=&quot;1-修改jersey配置&quot;&gt;(1) 修改Jersey配置&lt;/h4&gt;
+
+&lt;div class=&quot;highlighter-rouge&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;&amp;lt;!-- jersey --&amp;gt;
+&amp;lt;servlet&amp;gt;
+    &amp;lt;servlet-name&amp;gt;jersey&amp;lt;/servlet-name&amp;gt;
+    &amp;lt;servlet-class&amp;gt;org.glassfish.jersey.servlet.ServletContainer&amp;lt;/servlet-class&amp;gt;
+    &amp;lt;init-param&amp;gt;
+        &amp;lt;param-name&amp;gt;jersey.config.server.provider.packages&amp;lt;/param-name&amp;gt;
+        &amp;lt;param-value&amp;gt;io.swagger.jaxrs.listing,com.devzeng.service.schedule.api&amp;lt;/param-value&amp;gt;
+    &amp;lt;/init-param&amp;gt;
+    &amp;lt;load-on-startup&amp;gt;1&amp;lt;/load-on-startup&amp;gt;
+&amp;lt;/servlet&amp;gt;
+&amp;lt;servlet-mapping&amp;gt;
+    &amp;lt;servlet-name&amp;gt;jersey&amp;lt;/servlet-name&amp;gt;
+    &amp;lt;url-pattern&amp;gt;/api/*&amp;lt;/url-pattern&amp;gt;
+&amp;lt;/servlet-mapping&amp;gt;
+&lt;/code&gt;&lt;/pre&gt;
+&lt;/div&gt;
+
+&lt;h4 id=&quot;2新增swagger配置&quot;&gt;（2）新增swagger配置&lt;/h4&gt;
+
+&lt;div class=&quot;highlighter-rouge&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;&amp;lt;!-- swagger --&amp;gt;
+&amp;lt;servlet&amp;gt;
+    &amp;lt;servlet-name&amp;gt;Jersey2Config&amp;lt;/servlet-name&amp;gt;
+    &amp;lt;servlet-class&amp;gt;io.swagger.jersey.config.JerseyJaxrsConfig&amp;lt;/servlet-class&amp;gt;
+    &amp;lt;init-param&amp;gt;
+        &amp;lt;param-name&amp;gt;api.version&amp;lt;/param-name&amp;gt;
+        &amp;lt;param-value&amp;gt;1.0.0&amp;lt;/param-value&amp;gt;
+    &amp;lt;/init-param&amp;gt;
+    &amp;lt;init-param&amp;gt;
+        &amp;lt;param-name&amp;gt;swagger.api.basepath&amp;lt;/param-name&amp;gt;
+        &amp;lt;param-value&amp;gt;http://localhost:8080/api&amp;lt;/param-value&amp;gt;
+    &amp;lt;/init-param&amp;gt;
+    &amp;lt;load-on-startup&amp;gt;2&amp;lt;/load-on-startup&amp;gt;
+&amp;lt;/servlet&amp;gt;
+&lt;/code&gt;&lt;/pre&gt;
+&lt;/div&gt;
+
+&lt;p&gt;说明：&lt;/p&gt;
+
+&lt;ul&gt;
+  &lt;li&gt;&lt;code class=&quot;highlighter-rouge&quot;&gt;swagger.api.basepath&lt;/code&gt;:这个是api访问的baseurl&lt;/li&gt;
+&lt;/ul&gt;
+
+&lt;h3 id=&quot;3配置注解&quot;&gt;3、配置注解&lt;/h3&gt;
+
+&lt;h3 id=&quot;4配置swagger-ui&quot;&gt;4、配置swagger-ui&lt;/h3&gt;
+
+&lt;h4 id=&quot;1-下载swagger-ui&quot;&gt;(1) 下载swagger-ui&lt;/h4&gt;
+
+&lt;p&gt;&lt;code class=&quot;highlighter-rouge&quot;&gt;https://github.com/swagger-api/swagger-ui&lt;/code&gt;&lt;/p&gt;
+
+&lt;p&gt;推荐使用2.x版本&lt;/p&gt;
+
+&lt;h4 id=&quot;2-拷贝dist目录下面的文件到webroot下面&quot;&gt;(2) 拷贝dist目录下面的文件到webroot下面&lt;/h4&gt;
+
+&lt;h4 id=&quot;3-修改indexhtml页面的url地址&quot;&gt;(3) 修改index.html页面的url地址&lt;/h4&gt;
+
+&lt;div class=&quot;highlighter-rouge&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;url = &quot;http://localhost:8080/api/swagger.json&quot;;
+&lt;/code&gt;&lt;/pre&gt;
+&lt;/div&gt;
+
+&lt;p&gt;生成的文档效果如下：&lt;/p&gt;
+
+&lt;p&gt;&lt;img src=&quot;/images/jersey-swagger/swagger-demo.jpg&quot; alt=&quot;swagger-demo.jpg&quot; /&gt;&lt;/p&gt;
+
+&lt;h3 id=&quot;参考资料&quot;&gt;参考资料&lt;/h3&gt;
+
+&lt;p&gt;1、&lt;a href=&quot;https://github.com/swagger-api/swagger-core/wiki/Swagger-Core-Jersey-2.X-Project-Setup-1.5#configure-and-initialize-swagger&quot;&gt;Swagger Core Jersey 2.X Project Setup 1.5&lt;/a&gt;&lt;/p&gt;
+
+&lt;p&gt;2、&lt;a href=&quot;https://github.com/swagger-api/swagger-core/wiki/Annotations-1.5.X&quot;&gt;Swagger-Core Annotations&lt;/a&gt;&lt;/p&gt;
+</description>
+        <pubDate>Thu, 04 May 2017 21:51:00 +0800</pubDate>
+        <link>http://blog.devzeng.com/blog/jersey-swagger-api.html</link>
+        <guid isPermaLink="true">http://blog.devzeng.com/blog/jersey-swagger-api.html</guid>
+        
+        <category>Java</category>
+        
+        
+      </item>
+    
+      <item>
+        <title>Windows环境下OpenSSL的编译和使用</title>
+        <description>&lt;p&gt;&lt;a href=&quot;https://www.openssl.org/&quot;&gt;OpenSSL&lt;/a&gt;是目前使用的非常广泛的加密算法库，基本上我们日常使用到的HTTPS、SSH都离不开它的身影。本文就在Windows环境下面编译最新版本的OpenSSL的步骤进行整理。&lt;/p&gt;
+
+&lt;p&gt;&lt;img src=&quot;/images/openssl-windows-compile/oepnssl-logo.png&quot; alt=&quot;oepnssl-logo.png&quot; /&gt;&lt;/p&gt;
+
+&lt;h3 id=&quot;编译openssl&quot;&gt;编译OpenSSL&lt;/h3&gt;
+
+&lt;h4 id=&quot;1编译环境准备&quot;&gt;1.编译环境准备&lt;/h4&gt;
+
+&lt;h5 id=&quot;1-perl&quot;&gt;(1) perl&lt;/h5&gt;
+
+&lt;p&gt;OpenSSL的编译需要使用到perl的环境，如果之前安装过可以跳过此步骤。&lt;/p&gt;
+
+&lt;p&gt;1) 下载perl安装包&lt;/p&gt;
+
+&lt;p&gt;根据操作系统的版本下载对应最新版本的perl（当前最新的版本是&lt;code class=&quot;highlighter-rouge&quot;&gt;5.22.3.2204&lt;/code&gt;），下载地址是：&lt;code class=&quot;highlighter-rouge&quot;&gt;https://www.activestate.com/activeperl/downloads&lt;/code&gt;。&lt;/p&gt;
+
+&lt;p&gt;&lt;img src=&quot;/images/openssl-windows-compile/windows-perl-download-page.png&quot; alt=&quot;windows-perl-download-page.png&quot; /&gt;&lt;/p&gt;
+
+&lt;p&gt;2) 配置环境变量&lt;/p&gt;
+
+&lt;p&gt;前往“&lt;code class=&quot;highlighter-rouge&quot;&gt;计算机&lt;/code&gt; -&amp;gt; &lt;code class=&quot;highlighter-rouge&quot;&gt;右键-属性&lt;/code&gt; -&amp;gt; &lt;code class=&quot;highlighter-rouge&quot;&gt;高级系统设置&lt;/code&gt; -&amp;gt; &lt;code class=&quot;highlighter-rouge&quot;&gt;环境变量&lt;/code&gt;”将&lt;code class=&quot;highlighter-rouge&quot;&gt;C:\Perl\site\bin;C:\Perl\bin;&lt;/code&gt;（Perl安装路径）添加到环境变量（如果前面有其他的配置使用&lt;code class=&quot;highlighter-rouge&quot;&gt;;&lt;/code&gt;进行拼接）&lt;/p&gt;
+
+&lt;p&gt;配置完成之后再cmd中输入&lt;code class=&quot;highlighter-rouge&quot;&gt;perl -version&lt;/code&gt;,如果正确输出如下信息表示成功安装。&lt;/p&gt;
+
+&lt;div class=&quot;highlighter-rouge&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;This is perl 5, version 22, xxxxxx
+&lt;/code&gt;&lt;/pre&gt;
+&lt;/div&gt;
+
+&lt;h5 id=&quot;2-openssl&quot;&gt;(2) openssl&lt;/h5&gt;
+
+&lt;p&gt;前往OpenSSL的&lt;a href=&quot;https://www.openssl.org/&quot;&gt;官网&lt;/a&gt;下载最新最新版本的源码（当前最新的版本是&lt;code class=&quot;highlighter-rouge&quot;&gt;openssl-1.1.0e&lt;/code&gt;），下载完成之后解压到D盘。下载界面如下：&lt;/p&gt;
+
+&lt;p&gt;&lt;img src=&quot;/images/openssl-windows-compile/openssl-source-download-page.png&quot; alt=&quot;&quot; /&gt;&lt;/p&gt;
+
+&lt;h5 id=&quot;3-ide安装&quot;&gt;(3) IDE安装&lt;/h5&gt;
+
+&lt;p&gt;本文使用的是&lt;code class=&quot;highlighter-rouge&quot;&gt;Visual Studio 2010&lt;/code&gt;版本&lt;/p&gt;
+
+&lt;h4 id=&quot;2编译openssl&quot;&gt;2.编译OpenSSL&lt;/h4&gt;
+
+&lt;p&gt;打开命令行工具，cd到OpenSSL源码所在路径。&lt;/p&gt;
+
+&lt;h5 id=&quot;1-配置编译模式&quot;&gt;(1) 配置编译模式&lt;/h5&gt;
+
+&lt;div class=&quot;highlighter-rouge&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;perl Configure VC-WIN32 no-asm --prefix=d:\openssl_lib
+&lt;/code&gt;&lt;/pre&gt;
+&lt;/div&gt;
+
+&lt;p&gt;说明：&lt;/p&gt;
+
+&lt;ul&gt;
+  &lt;li&gt;Configure 后面的选项可选值有&lt;code class=&quot;highlighter-rouge&quot;&gt; VC-WIN32(32位) | VC-WIN64A(64位AMD) | VC-WIN64I(64位Intel) | VC-CE(Windows CE)&lt;/code&gt;&lt;/li&gt;
+  &lt;li&gt;prefix: 表示生成的lib文件存放路径&lt;/li&gt;
+&lt;/ul&gt;
+
+&lt;h5 id=&quot;2-编译生成&quot;&gt;(2) 编译生成&lt;/h5&gt;
+
+&lt;p&gt;1) 编译源码&lt;/p&gt;
+
+&lt;div class=&quot;highlighter-rouge&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;nmake
+&lt;/code&gt;&lt;/pre&gt;
+&lt;/div&gt;
+
+&lt;p&gt;2) 测试&lt;/p&gt;
+
+&lt;div class=&quot;highlighter-rouge&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;nmake test
+&lt;/code&gt;&lt;/pre&gt;
+&lt;/div&gt;
+
+&lt;p&gt;3) 生成可执行文件&lt;/p&gt;
+
+&lt;div class=&quot;highlighter-rouge&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;nmake install
+&lt;/code&gt;&lt;/pre&gt;
+&lt;/div&gt;
+
+&lt;p&gt;执行完成上面的三个步骤之后在&lt;code class=&quot;highlighter-rouge&quot;&gt;d:\openssl_lib&lt;/code&gt;这个目录下面会生成四个文件夹（include/lib/bin/html)：&lt;/p&gt;
+
+&lt;ul&gt;
+  &lt;li&gt;&lt;code class=&quot;highlighter-rouge&quot;&gt;include&lt;/code&gt;目录下面存放的shi头文件&lt;/li&gt;
+  &lt;li&gt;&lt;code class=&quot;highlighter-rouge&quot;&gt;lib&lt;/code&gt;目录是生成的静态库文件,文件的后缀是&lt;code class=&quot;highlighter-rouge&quot;&gt;.lib&lt;/code&gt;&lt;/li&gt;
+  &lt;li&gt;&lt;code class=&quot;highlighter-rouge&quot;&gt;bin&lt;/code&gt;目录下面存放的是dll文件和exe文件&lt;/li&gt;
+  &lt;li&gt;&lt;code class=&quot;highlighter-rouge&quot;&gt;html&lt;/code&gt;目录下面存放的是文档&lt;/li&gt;
+&lt;/ul&gt;
+
+&lt;h3 id=&quot;openssl的简单使用&quot;&gt;OpenSSL的简单使用&lt;/h3&gt;
+
+&lt;h4 id=&quot;1注册dll文件&quot;&gt;1.注册dll文件&lt;/h4&gt;
+
+&lt;p&gt;执行下面两个步骤实现dll文件注册：&lt;/p&gt;
+
+&lt;p&gt;1) 将bin目录下面的&lt;code class=&quot;highlighter-rouge&quot;&gt;libcrypto-1_1.dll&lt;/code&gt;文件拷贝到&lt;code class=&quot;highlighter-rouge&quot;&gt;C:\Windows\System32&lt;/code&gt;目录下面&lt;/p&gt;
+
+&lt;p&gt;2) 在运行(&lt;code class=&quot;highlighter-rouge&quot;&gt;win+R&lt;/code&gt;)中输入&lt;code class=&quot;highlighter-rouge&quot;&gt;regsvr32 libcrypto-1_1.dll&lt;/code&gt;&lt;/p&gt;
+
+&lt;h4 id=&quot;2创建示例项目&quot;&gt;2.创建示例项目&lt;/h4&gt;
+
+&lt;p&gt;使用&lt;code class=&quot;highlighter-rouge&quot;&gt;Visual Studio 2010&lt;/code&gt;创建一个C++的&lt;code class=&quot;highlighter-rouge&quot;&gt;CLR命令行控制台程序&lt;/code&gt;。&lt;/p&gt;
+
+&lt;h4 id=&quot;3配置openssl依赖&quot;&gt;3.配置OpenSSL依赖&lt;/h4&gt;
+
+&lt;p&gt;需要配置两个内容包含目录和库目录，&lt;code class=&quot;highlighter-rouge&quot;&gt;项目名称右键 -&amp;gt; 配置属性 -&amp;gt; VC++目录&lt;/code&gt;按照下面的配置方式进行配置：&lt;/p&gt;
+
+&lt;p&gt;&lt;img src=&quot;/images/openssl-windows-compile/visual-studio-config.png&quot; alt=&quot;visual-studio-config.png&quot; /&gt;&lt;/p&gt;
+
+&lt;h4 id=&quot;4示例代码&quot;&gt;4.示例代码&lt;/h4&gt;
+
+&lt;p&gt;下面以SHA256加密算法为例进行测试&lt;/p&gt;
+
+&lt;h5 id=&quot;1-头文件&quot;&gt;(1) 头文件&lt;/h5&gt;
+
+&lt;div class=&quot;highlighter-rouge&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;#include &amp;lt;openssl/sha.h&amp;gt;
+&lt;/code&gt;&lt;/pre&gt;
+&lt;/div&gt;
+
+&lt;h5 id=&quot;2-链接库&quot;&gt;(2) 链接库&lt;/h5&gt;
+
+&lt;div class=&quot;highlighter-rouge&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;#pragma comment(lib, &quot;libcrypto.lib&quot;)
+&lt;/code&gt;&lt;/pre&gt;
+&lt;/div&gt;
+
+&lt;h5 id=&quot;2-示例代码&quot;&gt;(2) 示例代码&lt;/h5&gt;
+
+&lt;div class=&quot;highlighter-rouge&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;void sha256(char* string, char outputBuffer[64])
+{
+    unsigned char hash[SHA256_DIGEST_LENGTH];
+    SHA256_CTX sha256;
+    SHA256_Init(&amp;amp;sha256);
+    SHA256_Update(&amp;amp;sha256, string, strlen(string));
+    SHA256_Final(hash, &amp;amp;sha256);
+    int i = 0;
+    for(i = 0; i &amp;lt; SHA256_DIGEST_LENGTH; i++)
+    {
+        sprintf(outputBuffer + (i * 2), &quot;%02x&quot;, hash[i]);
+    }
+}
+&lt;/code&gt;&lt;/pre&gt;
+&lt;/div&gt;
+
+&lt;h3 id=&quot;参考资料&quot;&gt;参考资料&lt;/h3&gt;
+
+&lt;p&gt;1、&lt;a href=&quot;http://blog.163.com/xiaoting_hu/blog/static/50464772201310415042524/&quot;&gt;VS2010中编译openssl的步骤和使用设置&lt;/a&gt;&lt;/p&gt;
+
+&lt;p&gt;2、&lt;a href=&quot;http://blogger.org.cn/blog/more.asp?name=OpenSSL&amp;amp;id=18972&quot;&gt;OpenSSL在Windows下的编译安装&lt;/a&gt;&lt;/p&gt;
+
+&lt;p&gt;3、&lt;a href=&quot;http://www.cnblogs.com/chinalantian/p/5819105.html&quot;&gt;在 Windows下用 Visual Studio 编译 OpenSSL 1.1.0&lt;/a&gt;&lt;/p&gt;
+
+&lt;p&gt;4、&lt;a href=&quot;https://github.com/openssl/openssl&quot;&gt;OpenSLL&lt;/a&gt;&lt;/p&gt;
+
+&lt;p&gt;5、&lt;a href=&quot;http://kb.cnblogs.com/page/94467/&quot;&gt;在VS2010项目中引用Lib静态库（以Openssl为例）&lt;/a&gt;&lt;/p&gt;
+</description>
+        <pubDate>Sat, 08 Apr 2017 19:00:00 +0800</pubDate>
+        <link>http://blog.devzeng.com/blog/openssl-windows-compile.html</link>
+        <guid isPermaLink="true">http://blog.devzeng.com/blog/openssl-windows-compile.html</guid>
+        
+        <category>C++</category>
+        
+        
+      </item>
+    
+      <item>
+        <title>使用Jersey开发REST服务</title>
+        <description>&lt;p&gt;REST 是英文 &lt;code class=&quot;highlighter-rouge&quot;&gt;Representational State Transfer&lt;/code&gt; 的缩写，有中文翻译为“&lt;code class=&quot;highlighter-rouge&quot;&gt;表述性状态转移&lt;/code&gt;”。REST 这个术语是由 Roy Fielding 在他的博士论文 &lt;a href=&quot;http://www.ics.uci.edu/~fielding/pubs/dissertation/top.htm&quot;&gt;《 Architectural Styles and the Design of Network-based Software Architectures 》&lt;/a&gt;中提出的。REST 并非标准，而是一种开发 Web 应用的架构风格，可以将其理解为一种设计模式。REST 基于 HTTP，URI，以及 XML 这些现有的广泛流行的协议和标准，伴随着 REST，HTTP 协议得到了更加正确的使用。&lt;/p&gt;
+
+&lt;p&gt;Jersy是一个业内使用非常广泛的Java Rest框架，本文就Jersey（2.13版本）的快速使用进行简单介绍，如需要了解更多的高级用法请查看官方的文档。&lt;/p&gt;
+
+&lt;h3 id=&quot;1在pomxml中加入jersey相关依赖&quot;&gt;1、在pom.xml中加入jersey相关依赖&lt;/h3&gt;
+
+&lt;div class=&quot;highlighter-rouge&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;&amp;lt;dependency&amp;gt;
+    &amp;lt;groupId&amp;gt;org.glassfish.jersey.containers&amp;lt;/groupId&amp;gt;
+    &amp;lt;artifactId&amp;gt;jersey-container-grizzly2-servlet&amp;lt;/artifactId&amp;gt;
+    &amp;lt;version&amp;gt;2.13&amp;lt;/version&amp;gt;
+&amp;lt;/dependency&amp;gt;
+&amp;lt;dependency&amp;gt;
+    &amp;lt;groupId&amp;gt;org.glassfish.jersey.containers&amp;lt;/groupId&amp;gt;
+    &amp;lt;artifactId&amp;gt;jersey-container-servlet-core&amp;lt;/artifactId&amp;gt;
+    &amp;lt;version&amp;gt;2.13&amp;lt;/version&amp;gt;
+&amp;lt;/dependency&amp;gt;
+&amp;lt;dependency&amp;gt;
+    &amp;lt;groupId&amp;gt;org.glassfish.jersey.media&amp;lt;/groupId&amp;gt;
+    &amp;lt;artifactId&amp;gt;jersey-media-json-jackson&amp;lt;/artifactId&amp;gt;
+    &amp;lt;version&amp;gt;2.13&amp;lt;/version&amp;gt;
+&amp;lt;/dependency&amp;gt;
+&lt;/code&gt;&lt;/pre&gt;
+&lt;/div&gt;
+
+&lt;h3 id=&quot;2配置webxml文件&quot;&gt;2、配置web.xml文件&lt;/h3&gt;
+
+&lt;div class=&quot;highlighter-rouge&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;&amp;lt;servlet&amp;gt;
+    &amp;lt;servlet-name&amp;gt;Jersey REST Service&amp;lt;/servlet-name&amp;gt;
+    &amp;lt;servlet-class&amp;gt;org.glassfish.jersey.servlet.ServletContainer&amp;lt;/servlet-class&amp;gt;
+    &amp;lt;init-param&amp;gt;
+        &amp;lt;param-name&amp;gt;jersey.config.server.provider.packages&amp;lt;/param-name&amp;gt;
+        &amp;lt;param-value&amp;gt;com.devzeng.demo.api&amp;lt;/param-value&amp;gt;
+    &amp;lt;/init-param&amp;gt;
+    &amp;lt;load-on-startup&amp;gt;1&amp;lt;/load-on-startup&amp;gt;
+&amp;lt;/servlet&amp;gt;
+&amp;lt;servlet-mapping&amp;gt;
+    &amp;lt;servlet-name&amp;gt;Jersey REST Service&amp;lt;rvlet-name&amp;gt;
+	&amp;lt;url-pattern&amp;gt;/api/*&amp;lt;/url-pattern&amp;gt;
+&amp;lt;/servlet-mapping&amp;gt;
+&lt;/code&gt;&lt;/pre&gt;
+&lt;/div&gt;
+
+&lt;h3 id=&quot;3开发&quot;&gt;3、开发&lt;/h3&gt;
+
+&lt;div class=&quot;highlighter-rouge&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;@Path(&quot;/api&quot;)
+public class HelloApiService {
+
+    @POST
+	@Path(&quot;save&quot;)
+	@Consumes(MediaType.APPLICATION_FORM_URLENCODED)
+	@Produces(MediaType.APPLICATION_JSON)
+	public String save(@FormParam(&quot;data&quot;) String data) {
+		return &quot;{\&quot;message\&quot;:\&quot;save\&quot;}&quot;;
+	}
+	
+	@GET
+	@Path(&quot;list&quot;)
+	@Produces(MediaType.APPLICATION_JSON)
+	public String list(@QueryParam(&quot;from&quot;) String from, @QueryParam(&quot;to&quot;) String to) {
+		return &quot;{\&quot;message\&quot;:\&quot;list\&quot;}&quot;; 
+	}
+	
+	@GET
+	@Path(&quot;detail/{id}&quot;)
+	@Produces(MediaType.APPLICATION_JSON)
+	public String detail(@PathParam(&quot;id&quot;) String id) {
+		return &quot;{\&quot;message\&quot;:\&quot;detail\&quot;}&quot;; 
+	}
+}
+&lt;/code&gt;&lt;/pre&gt;
+&lt;/div&gt;
+
+&lt;p&gt;说明：&lt;/p&gt;
+
+&lt;h4 id=&quot;1跨域问题解决&quot;&gt;(1)跨域问题解决&lt;/h4&gt;
+
+&lt;p&gt;如果编写的API接口需要给前端进行调用，通常会遇到跨域的问题，可以使用下面的方式进行解决：&lt;/p&gt;
+
+&lt;div class=&quot;highlighter-rouge&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;@Provider
+public class SceduleApiServiceCorsFilter implements ContainerResponseFilter {
+
+	public void filter(ContainerRequestContext creq, ContainerResponseContext cres) throws IOException {
+		cres.getHeaders().add(&quot;Access-Control-Allow-Origin&quot;, &quot;*&quot;);
+        cres.getHeaders().add(&quot;Access-Control-Allow-Headers&quot;, &quot;origin, content-type, accept, authorization&quot;);
+        cres.getHeaders().add(&quot;Access-Control-Allow-Credentials&quot;, &quot;true&quot;);
+        cres.getHeaders().add(&quot;Access-Control-Allow-Methods&quot;, &quot;GET, POST, PUT, DELETE, OPTIONS, HEAD&quot;);
+        cres.getHeaders().add(&quot;Access-Control-Max-Age&quot;, &quot;1209600&quot;);
+	}
+	
+}
+&lt;/code&gt;&lt;/pre&gt;
+&lt;/div&gt;
+
+&lt;h4 id=&quot;2json--xml处理&quot;&gt;(2)JSON &amp;amp; XML处理&lt;/h4&gt;
+
+&lt;p&gt;对于REST的接口通常需要返回的数据格式是JSON、XML。如果每次都是使用JSONObject这样的库来进行拼接，也是一件很麻烦的事情，为何不能直接返回对应的POJO对象呢。Jersey就支持这样的处理，为了让项目结构比较清晰，推荐建立一个单独的package（如com.devzeng.rest.pojo）,在该package创建一个POJO对象&lt;code class=&quot;highlighter-rouge&quot;&gt;MyCustomBean&lt;/code&gt;。&lt;/p&gt;
+
+&lt;div class=&quot;highlighter-rouge&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;public class MyCustomBean {
+
+    private String name;
+    private int age;
+
+    public String getName() {
+        return name;
+    }
+    
+    public void setName(String name) {
+        this.name = name;
+    }
+    
+    public int getAge() {
+        return age;
+    }
+    
+    public void setAge(int age) {
+        this.age = age;
+    }
+}
+&lt;/code&gt;&lt;/pre&gt;
+&lt;/div&gt;
+
+&lt;h5 id=&quot;1json处理&quot;&gt;1)JSON处理&lt;/h5&gt;
+
+&lt;div class=&quot;highlighter-rouge&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;@GET
+@Path(&quot;hellojson&quot;)
+@Produces(MediaType.APPLICATION_JSON)
+public MyCustomBean sayHelloWithJson() {
+    MyCustomBean bean = new MyCustomBean();
+    bean(&quot;tom&quot;);
+    bean.setAge(20);
+    return bean;
+}
+&lt;/code&gt;&lt;/pre&gt;
+&lt;/div&gt;
+
+&lt;p&gt;说明：&lt;/p&gt;
+
+&lt;p&gt;① &lt;code class=&quot;highlighter-rouge&quot;&gt;Produces&lt;/code&gt;注解需要指定返回的数据格式是JSON格式(&lt;code class=&quot;highlighter-rouge&quot;&gt;MediaType.APPLICATION_JSON&lt;/code&gt;)。&lt;/p&gt;
+
+&lt;p&gt;② 如果启动之后报如下错误：&lt;/p&gt;
+
+&lt;div class=&quot;highlighter-rouge&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;org.glassfish.jersey.message.internal.WriterInterceptorExecutor$TerminalWriterInterceptor aroundWriteTo
+&lt;/code&gt;&lt;/pre&gt;
+&lt;/div&gt;
+
+&lt;p&gt;表示POJO对象没有被序列化成JSON对象，需要添加相关的库，推荐使用&lt;code class=&quot;highlighter-rouge&quot;&gt;jersey-media-json-jackson&lt;/code&gt;模块：&lt;/p&gt;
+
+&lt;div class=&quot;highlighter-rouge&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;&amp;lt;dependency&amp;gt;
+    &amp;lt;groupId&amp;gt;org.glassfish.jersey.media&amp;lt;/groupId&amp;gt;
+    &amp;lt;artifactId&amp;gt;jersey-media-json-jackson&amp;lt;/artifactId&amp;gt;
+    &amp;lt;version&amp;gt;2.13&amp;lt;/version&amp;gt;
+&amp;lt;/dependency&amp;gt;
+&lt;/code&gt;&lt;/pre&gt;
+&lt;/div&gt;
+
+&lt;h5 id=&quot;2-xml处理&quot;&gt;2) XML处理&lt;/h5&gt;
+
+&lt;div class=&quot;highlighter-rouge&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;@GET
+@Path(&quot;helloxml&quot;)
+@Produces(MediaType.APPLICATION_XML)
+public MyCustomBean sayHelloWithXML() {
+    MyCustomBean bean = new MyCustomBean();
+    bean(&quot;tom&quot;);
+    bean.setAge(20);
+    return bean;
+}
+&lt;/code&gt;&lt;/pre&gt;
+&lt;/div&gt;
+
+&lt;p&gt;① &lt;code class=&quot;highlighter-rouge&quot;&gt;Produces&lt;/code&gt;注解需要指定返回的数据格式是XML格式(&lt;code class=&quot;highlighter-rouge&quot;&gt;MediaType.APPLICATION_XML&lt;/code&gt;)。&lt;/p&gt;
+
+&lt;p&gt;② 启动项目之后如果报如下错误：&lt;/p&gt;
+
+&lt;div class=&quot;highlighter-rouge&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;org.glassfish.jersey.message.internal.WriterInterceptorExecutor$TerminalWriterInterceptor aroundWriteTo
+&lt;/code&gt;&lt;/pre&gt;
+&lt;/div&gt;
+
+&lt;p&gt;需要在POJO对象上面加上&lt;code class=&quot;highlighter-rouge&quot;&gt;@XmlRootElement&lt;/code&gt;，&lt;code class=&quot;highlighter-rouge&quot;&gt;@XmlRootElement&lt;/code&gt;表示将一个类或者是枚举类型映射成为一个XML元素。&lt;/p&gt;
+
+&lt;h4 id=&quot;3中文乱码问题&quot;&gt;（3）中文乱码问题&lt;/h4&gt;
+
+&lt;p&gt;1) 推荐将项目的所有格式设置为UTF-8;&lt;/p&gt;
+
+&lt;p&gt;2) 如果还存在中文乱码的问题，需要将&lt;/p&gt;
+
+&lt;div class=&quot;highlighter-rouge&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;@Produces(MediaType.APPLICATION_JSON + &quot;;charset=utf-8&quot;)
+&lt;/code&gt;&lt;/pre&gt;
+&lt;/div&gt;
+
+&lt;h3 id=&quot;参考资料&quot;&gt;参考资料&lt;/h3&gt;
+
+&lt;p&gt;1.&lt;a href=&quot;https://jersey.java.net/&quot;&gt;《Jersey官方文档》&lt;/a&gt;&lt;/p&gt;
+
+&lt;p&gt;2.&lt;a href=&quot;https://www.gitbook.com/book/waylau/rest-in-action&quot;&gt;《REST 实战》&lt;/a&gt;&lt;/p&gt;
+</description>
+        <pubDate>Sat, 18 Mar 2017 18:00:00 +0800</pubDate>
+        <link>http://blog.devzeng.com/blog/java-restful-with-jersey.html</link>
+        <guid isPermaLink="true">http://blog.devzeng.com/blog/java-restful-with-jersey.html</guid>
+        
+        <category>Java</category>
+        
+        
+      </item>
+    
+  </channel>
+</rss>
